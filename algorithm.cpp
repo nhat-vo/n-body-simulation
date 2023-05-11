@@ -43,3 +43,24 @@ void update_positions(vector<Body>& bodies, int start, int end, double dt) {
         bodies[i].y += bodies[i].vy * dt;
     }
 }
+
+void simulate(vector<Body>& bodies, int num_threads, double dt, int num_steps) {
+    int n = bodies.size();
+    vector<thread> threads(num_threads);
+    vector<mutex> mutexes(n);
+    for (int step = 0; step < num_steps; step++) {
+        // Compute forces
+        int chunk_size = n / num_threads;
+        int start = 0;
+        int end = chunk_size;
+        for (int i = 0; i < num_threads; i++) {
+            if (i == num_threads - 1) {
+                end = n;
+            }
+            threads[i] = thread(compute_forces, ref(bodies), start, end, ref(mutexes));
+            start = end;
+            end += chunk_size;
+        }
+        for (auto& t : threads) {
+            t.join();
+        }
