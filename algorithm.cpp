@@ -64,3 +64,44 @@ void simulate(vector<Body>& bodies, int num_threads, double dt, int num_steps) {
         for (auto& t : threads) {
             t.join();
         }
+
+        // Update positions
+        start = 0;
+        end = chunk_size;
+        for (int i = 0; i < num_threads; i++) {
+            if (i == num_threads - 1) {
+                end = n;
+            }
+            threads[i] = thread(update_positions, ref(bodies), start, end, dt);
+            start = end;
+            end += chunk_size;
+        }
+        for (auto& t : threads) {
+            t.join();
+        }
+    }
+}
+
+int main() {
+    int num_bodies = 2; // to be precised
+    int num_threads = 2; // to be precised
+    double dt = 1.0;
+    int num_steps = 10; 
+    int start = 0;
+    int end = 10;
+
+    vector<Body> bodies(num_bodies);
+    bodies[0].mass = 1;
+    bodies[0].x = 2;
+    bodies[1].mass = 2;
+    bodies[1].x = 2;
+
+    for (int step = 0; step < num_steps; ++step) {
+        compute_forces(bodies, start, end, mutexes);
+        update_positions(bodies, start, end, dt);
+    }
+}
+
+
+
+
