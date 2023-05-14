@@ -1,10 +1,11 @@
 CXX = g++
-CFLAGS = -pthread -std=c++17 -Wall -g
+CFLAGS = -pthread -std=c++17 -Wall -g `Magick++-config --cppflags --cxxflags --ldflags --libs`
+
 
 OBJECTS = main.o
 
 run: main
-	./main
+	./main && wslview image.gif
 
 main: $(OBJECTS)
 	$(CXX) $(CFLAGS) -o main $(OBJECTS) 

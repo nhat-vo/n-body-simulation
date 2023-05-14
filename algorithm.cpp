@@ -1,3 +1,8 @@
+#include "Magick++/Color.h"
+#include "Magick++/Drawable.h"
+#include "Magick++/Image.h"
+#include "Magick++/STL.h"
+#include <Magick++.h>
 #include <cmath>
 #include <format>
 #include <iostream>
@@ -38,10 +43,11 @@ class Body {
     const double m; // mass
     Vect r, v;      // position, velocity
     std::mutex lock;
+    std::string color;
 
     Body(double mass, const Vect &initial_position,
-         const Vect &initial_velocity)
-        : m(mass), r(initial_position), v(initial_velocity) {}
+         const Vect &initial_velocity, const std::string &color = "blue")
+        : m(mass), r(initial_position), v(initial_velocity), color(color) {}
 };
 
 std::ostream &operator<<(std::ostream &os, const Body &body) {
@@ -60,13 +66,13 @@ void compute_forces(std::vector<Body *> &bodies, size_t start, size_t end,
             double force_mag = G * bodies[i]->m * bodies[j]->m / dist_sq;
             Vect force = force_mag / dist * dr;
 
-            // bodies[i].lock.lock();
+            bodies[i]->lock.lock();
             bodies[i]->v = bodies[i]->v + force / bodies[i]->m * dt;
-            // bodies[i].lock.unlock();
+            bodies[i]->lock.unlock();
 
-            // bodies[j].lock.lock();
+            bodies[j]->lock.lock();
             bodies[j]->v = bodies[j]->v - force / bodies[j]->m * dt;
-            // bodies[j].lock.unlock();
+            bodies[j]->lock.unlock();
         }
     }
 }
@@ -77,65 +83,87 @@ void update_positions(std::vector<Body *> &bodies, int start, int end,
         bodies[i]->r = bodies[i]->r + bodies[i]->v * dt;
 }
 
-void simulate(std::vector<Body> &bodies, int num_threads, double dt,
-              int num_steps) {
-    int n = bodies.size();
-    std::vector<std::thread> threads(num_threads);
-    for (int step = 0; step < num_steps; step++) {
-        // Compute forces
-        int chunk_size = n / num_threads;
-        int start = 0;
-        int end = chunk_size;
-        for (int i = 0; i < num_threads; i++) {
-            if (i == num_threads - 1) {
-                end = n;
-            }
-            threads[i] =
-                std::thread(compute_forces, ref(bodies), start, end, dt);
-            start = end;
-            end += chunk_size;
-        }
-        for (auto &t : threads) {
-            t.join();
-        }
+// void simulate(std::vector<Body> &bodies, int num_threads, double dt,
+//               int num_steps) {
+//     int n = bodies.size();
+//     std::vector<std::thread> threads(num_threads);
+//     for (int step = 0; step < num_steps; step++) {
+//         // Compute forces
+//         int chunk_size = n / num_threads;
+//         int start = 0;
+//         int end = chunk_size;
+//         for (int i = 0; i < num_threads; i++) {
+//             if (i == num_threads - 1) {
+//                 end = n;
+//             }
+//             threads[i] =
+//                 std::thread(compute_forces, ref(bodies), start, end, dt);
+//             start = end;
+//             end += chunk_size;
+//         }
+//         for (auto &t : threads) {
+//             t.join();
+//         }
 
-        // Update positions
-        start = 0;
-        end = chunk_size;
-        for (int i = 0; i < num_threads; i++) {
-            if (i == num_threads - 1) {
-                end = n;
-            }
-            threads[i] =
-                std::thread(update_positions, ref(bodies), start, end, dt);
-            start = end;
-            end += chunk_size;
-        }
-        for (auto &t : threads) {
-            t.join();
-        }
-    }
-}
+//         // Update positions
+//         start = 0;
+//         end = chunk_size;
+//         for (int i = 0; i < num_threads; i++) {
+//             if (i == num_threads - 1) {
+//                 end = n;
+//             }
+//             threads[i] =
+//                 std::thread(update_positions, ref(bodies), start, end, dt);
+//             start = end;
+//             end += chunk_size;
+//         }
+//         for (auto &t : threads) {
+//             t.join();
+//         }
+//     }
+// }
 
-int main() {
+int main(int argc, char **argv) {
+    Magick::InitializeMagick(*argv);
     int num_bodies = 2;  // to be precised
     int num_threads = 2; // to be precised
     double dt = 1e-3;
-    double t_end = 10;
+    double t_end = 100;
     int start = 0;
     int end = 2;
 
-    Body b1 = Body(1e13, {-10, 0}, {0, 0});
-    Body b2 = Body(1e13, {10, 0}, {0, 0});
+    // double vy = sqrt(G * 1e14 / 100);
+    const Vect canvas_size{800, 500};
+    const Vect offset = canvas_size / 2;
+    double vy = 0;
+    Body b1 = Body(1e14, offset + Vect{0, 0}, {0, vy}, "blue");
+    Body b2 = Body(1e14, offset + Vect{100, 0}, {0, -vy}, "red");
+    Body b3 =
+        Body(1, offset + Vect{0, -50}, {sqrt(2. * G * 1e14 / 50), 0}, "green");
     std::cout << "body created" << std::endl;
 
-    std::vector<Body *> bodies{&b1, &b2};
+    std::vector<Body *> bodies{&b1, &b3};
 
-    for (double t = 0; t < t_end; t += dt) {
+    std::vector<Magick::Image> images;
+    double gif_dt = 1;
+    double gif_t = 0;
+
+    for (double t = dt; t <= t_end; t += dt) {
         compute_forces(bodies, start, end, dt);
         update_positions(bodies, start, end, dt);
-        std::cout << t << ": " << *bodies[0] << " " << *bodies[1] << std::endl;
-        if (bodies[0]->r.x >= 0)
-            break;
+        // std::cout << t << ": " << *bodies[0] << " " << *bodies[1] <<
+        // std::endl;
+        if (t >= gif_t) {
+            Magick::Image frame(Magick::Geometry(canvas_size.x, canvas_size.y),
+                                Magick::Color("white"));
+            for (const Body *body : bodies) {
+                frame.fillColor(body->color);
+                frame.draw(Magick::DrawableCircle(body->r.x, body->r.y,
+                                                  body->r.x - 10, body->r.y));
+            }
+            images.push_back(frame);
+            gif_t += gif_dt;
+        }
     }
+    Magick::writeImages(images.begin(), images.end(), "image.gif");
 }
