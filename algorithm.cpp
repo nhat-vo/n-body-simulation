@@ -1,5 +1,6 @@
 #include "Magick++/Color.h"
 #include "Magick++/Drawable.h"
+#include "Magick++/Geometry.h"
 #include "Magick++/Image.h"
 #include "Magick++/STL.h"
 #include <Magick++.h>
@@ -134,14 +135,13 @@ void draw(std::vector<Magick::Image> &images, const std::vector<Body *> &bodies,
     while (draw_t < end_t) {
         while (draw_t < current_t)
             draw_signal.wait(lock);
-        Magick::Image frame(Magick::Geometry(canvas_size.x, canvas_size.y),
+        images.emplace_back(Magick::Geometry(canvas_size.x, canvas_size.y),
                             Magick::Color("white"));
         for (const Body *body : bodies) {
-            frame.fillColor(body->color);
-            frame.draw(Magick::DrawableCircle(body->r.x, body->r.y,
-                                              body->r.x - 10, body->r.y));
+            images.back().fillColor(body->color);
+            images.back().draw(Magick::DrawableCircle(
+                body->r.x, body->r.y, body->r.x - 10, body->r.y));
         }
-        images.push_back(frame);
     }
 }
 
@@ -184,5 +184,6 @@ int main(int argc, char **argv) {
         }
     }
     draw_thread.join();
+    std::cout << "rendering done, exporting images" << std::endl;
     Magick::writeImages(images.begin(), images.end(), "image.gif");
 }
