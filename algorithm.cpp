@@ -5,23 +5,22 @@
 #include <cmath>
 #include <condition_variable>
 #include <ctime>
-#include <format>
 #include <functional>
-#include <future>
 #include <iostream>
+#include <list>
 #include <mutex>
 #include <thread>
 #include <vector>
 
 const double G = 6.67e-11;
 const double PI = 3.1415926535;
-const size_t N_BODIES = 100;
+const size_t N_BODIES = 1000;
 
 inline double uniform() { return (double)rand() / RAND_MAX; }
 inline size_t discrete_uniform(size_t n) { return rand() % n; }
 
 namespace config {
-const double dt = 1e-3;
+const double dt = 1e-2;
 const double t_end = 100;
 const double draw_dt = 1;
 const size_t canvas_width = 400, canvas_height = 400;
@@ -60,70 +59,66 @@ class Vector {
 typedef Vector Vect;
 
 class Drawer {
-  public:
-    std::vector<Magick::Image> images;
-    double draw_t = 0;
-    bool draw_pending = false;
-    std::vector<Vect> draw_r;
+  private:
+    const Magick::Geometry image_size;
+    const Magick::Color background_color;
     const std::vector<std::string> &colors;
-    std::thread draw_thread;
-    std::mutex draw_lock;
-    std::condition_variable draw_signal;
 
-    Drawer(const std::vector<std::string> &colors)
-        : colors(colors), draw_thread(&Drawer::draw, this) {}
+    std::list<Magick::Image> images;
+    double draw_t = 0;
+    std::vector<Vect> draw_r;
+
+    std::thread draw_thread;
 
     static void draw(Drawer *drawer_pt) {
+        // auto start = std::chrono::steady_clock::now();
         Drawer &drawer = *drawer_pt;
 
-        std::unique_lock<std::mutex> lock(drawer.draw_lock);
-        const Magick::Geometry image_size(canvas_width, canvas_height);
-        const Magick::Color background_color("white");
+        drawer.images.emplace_back(drawer.image_size, drawer.background_color);
+        auto &frame = drawer.images.back();
 
-        while (drawer.draw_t < t_end) {
-            while (!drawer.draw_pending)
-                drawer.draw_signal.wait(lock);
+        for (size_t i = 0; i < drawer.draw_r.size(); ++i) {
+            const Vect &r = drawer.draw_r[i];
+            double x = r.x, y = (double)canvas_height - r.y;
 
-            drawer.images.emplace_back(image_size, background_color);
-            auto &frame = drawer.images.back();
-
-            for (size_t i = 0; i < drawer.draw_r.size(); ++i) {
-                const Vect &r = drawer.draw_r[i];
-                double x = r.x, y = (double)canvas_height - r.y;
-                frame.fillColor(drawer.colors[i]);
-                frame.draw(Magick::DrawableCircle(x, y, x - 5, y));
-            }
-
-            frame.strokeColor("black");
-            frame.draw(Magick::DrawableText(
-                10, canvas_height - 10,
-                "t = " + std::to_string((int)drawer.draw_t)));
-
-            drawer.draw_pending = false;
-            drawer.draw_signal.notify_all();
+            frame.fillColor(drawer.colors[i]);
+            frame.draw(Magick::DrawableCircle(x, y, x - 5, y));
         }
-    }
-    void trigger_draw(double t, std::vector<Vect> *curr_r) {
-        if (t >= draw_t) {
-            std::unique_lock<std::mutex> lock(draw_lock);
 
-            // wait until the draw thread has finished drawing
-            while (draw_pending)
-                draw_signal.wait(lock);
-            draw_t += draw_dt;
-            draw_r = *curr_r;
-
-            // trigger the drawing thread
-            draw_pending = true;
-            draw_signal.notify_one();
-        }
+        frame.strokeColor("black");
+        frame.draw(Magick::DrawableText(
+            10, canvas_height - 10,
+            "t = " + std::to_string((int)(drawer.draw_t - draw_dt))));
+        // auto end = std::chrono::steady_clock::now();
+        // std::chrono::duration<double> duration = end - start;
+        // std::cout << "draw time: " << duration.count() << std::endl;
     }
+
+  public:
+    Drawer(const std::vector<std::string> &colors)
+        : image_size(canvas_width, canvas_height), background_color("white"),
+          colors(colors) {}
+
     ~Drawer() {
-        draw_thread.join();
+        if (draw_thread.joinable())
+            draw_thread.join();
         std::cout << "rendering done, exporting images" << std::endl;
         Magick::writeImages(images.begin(), images.end(), "image.gif");
         std::cout << "image written to "
                   << "image.gif" << std::endl;
+    }
+
+    void trigger_draw(double t, std::vector<Vect> *curr_r) {
+        if (t >= draw_t) {
+            // wait until the draw thread has finished drawing
+            if (draw_thread.joinable())
+                draw_thread.join();
+
+            draw_t += draw_dt;
+            draw_r = *curr_r;
+
+            draw_thread = std::thread(Drawer::draw, this);
+        }
     }
 };
 
@@ -151,8 +146,7 @@ void compute_forces(Scenario &bodies, size_t start, size_t end, double dt) {
     }
 }
 
-template <typename T>
-void update_positions(T &bodies, int start, int end, double dt) {
+void update_positions(Scenario &bodies, int start, int end, double dt) {
     for (int i = start; i < end; i++)
         bodies.r[i] = bodies.r[i] + bodies.v[i] * dt;
 }
@@ -170,18 +164,40 @@ void multi_thread_1_aux(Scenario &bodies, std::vector<Vect> &curr,
                         std::vector<Vect> &next, size_t start, size_t end) {
     size_t n = bodies.r.size();
     for (size_t i = start; i < end; i++) {
-        for (size_t j = 0; j < n; j++) {
-            if (i == j)
-                continue;
-            Vector dr = curr[j] - curr[i];
+        for (size_t j = i + 1; j < end; ++j) {
+            Vect dr = curr[j] - curr[i];
 
             double dist_sq = std::max(dr.norm2(), 1e-6);
             double dist = sqrt(dist_sq);
             double force_mag = G * bodies.m[i] * bodies.m[j] / dist_sq;
-            Vector force = dr * (force_mag / dist);
+            Vect force = dr * (force_mag / dist);
+
+            bodies.v[i] += force * (dt / bodies.m[i]);
+            bodies.v[j] -= force * (dt / bodies.m[j]);
+        }
+
+        for (size_t j = 0; j < start; ++j) {
+            Vect dr = curr[j] - curr[i];
+
+            double dist_sq = std::max(dr.norm2(), 1e-6);
+            double dist = sqrt(dist_sq);
+            double force_mag = G * bodies.m[i] * bodies.m[j] / dist_sq;
+            Vect force = dr * (force_mag / dist);
 
             bodies.v[i] += force * (dt / bodies.m[i]);
         }
+
+        for (size_t j = end; j < n; ++j) {
+            Vect dr = curr[j] - curr[i];
+
+            double dist_sq = std::max(dr.norm2(), 1e-6);
+            double dist = sqrt(dist_sq);
+            double force_mag = G * bodies.m[i] * bodies.m[j] / dist_sq;
+            Vect force = dr * (force_mag / dist);
+
+            bodies.v[i] += force * (dt / bodies.m[i]);
+        }
+
         next[i] = curr[i] + bodies.v[i] * dt;
     }
 }
@@ -229,8 +245,8 @@ int main(int argc, char **argv) {
     for (size_t i = 0; i < N_BODIES; ++i) {
         bodies.m.push_back(10 + 5 * uniform());
         bodies.colors.push_back(colors[rand() % colors.size()]);
-        bodies.r.push_back(Vect((0.5 + 0.2 * uniform()) * canvas_width,
-                                (0.5 + 0.2 * uniform()) * canvas_height));
+        bodies.r.push_back(Vect((0.25 + 0.5 * uniform()) * canvas_width,
+                                (0.25 + 0.5 * uniform()) * canvas_height));
 
         Vect dir = bodies.r.back() - bodies.r.front();
         double dist = dir.norm();
