@@ -1,189 +1,241 @@
-#include "Magick++/Color.h"
-#include "Magick++/Drawable.h"
-#include "Magick++/Geometry.h"
-#include "Magick++/Image.h"
-#include "Magick++/STL.h"
 #include <Magick++.h>
+#include <atomic>
+#include <barrier>
 #include <cmath>
 #include <condition_variable>
 #include <format>
+#include <functional>
 #include <iostream>
 #include <mutex>
 #include <thread>
 #include <vector>
 
 const double G = 6.67e-11; // gravitational constant
+const double dt = 1e-3;
+const double t_end = 100;
+const double draw_dt = 1;
+const size_t canvas_width = 800, canvas_height = 500;
+const size_t n_threads = 2;
 
-class Vect {
+template <typename T> class Vector {
   public:
     double x, y;
-    Vect(double x, double y) : x(x), y(y) {}
+    Vector(double x, double y) : x(x), y(y) {}
+    Vector() : x(0), y(0) {}
     double norm2() { return x * x + y * y; }
     double norm() { return sqrt(x * x + y * y); }
+
+    template <typename U> void operator+=(const Vector<U> &b) {
+        x += b.x;
+        y += b.y;
+    }
+    template <typename U> void operator-=(const Vector<U> &b) {
+        x -= b.x;
+        y -= b.y;
+    }
+    template <typename U> Vector operator+(const Vector<U> &b) const {
+        return {x + b.x, y + b.y};
+    }
+    template <typename U> Vector operator-(const Vector<U> &b) const {
+        return {x - b.x, y - b.y};
+    }
+    template <typename U> Vector operator*(const Vector<U> &b) const {
+        return {x * b.x, y * b.y};
+    }
+    template <typename U> Vector operator/(const Vector<U> &b) const {
+        return {x / b.x, y / b.y};
+    }
+
+    Vector operator+(double b) { return {x + b, y + b}; }
+    Vector operator-(double b) { return {x - b, y - b}; }
+    Vector operator*(double b) { return {x * b, y * b}; }
+    Vector operator/(double b) { return {x / b, y / b}; }
 };
-Vect operator+(const Vect &a, const Vect &b) { return {a.x + b.x, a.y + b.y}; }
-Vect operator-(const Vect &a, const Vect &b) { return {a.x - b.x, a.y - b.y}; }
-Vect operator*(const Vect &a, const Vect &b) { return {a.x * b.x, a.y * b.y}; }
-Vect operator/(const Vect &a, const Vect &b) { return {a.x / b.x, a.y / b.y}; }
 
-Vect operator+(const Vect &a, double b) { return {a.x + b, a.y + b}; }
-Vect operator-(const Vect &a, double b) { return {a.x - b, a.y - b}; }
-Vect operator*(const Vect &a, double b) { return {a.x * b, a.y * b}; }
-Vect operator/(const Vect &a, double b) { return {a.x / b, a.y / b}; }
+typedef Vector<double> Vect;
+typedef Vector<std::atomic<double>> AVect;
 
-Vect operator+(double b, const Vect &a) { return {a.x + b, a.y + b}; }
-Vect operator-(double b, const Vect &a) { return {a.x - b, a.y - b}; }
-Vect operator*(double b, const Vect &a) { return {a.x * b, a.y * b}; }
-Vect operator/(double b, const Vect &a) { return {a.x / b, a.y / b}; }
-
-std::ostream &operator<<(std::ostream &os, const Vect &vect) {
-    return os << "{" << vect.x << ", " << vect.y << "}";
-}
-
-class Body {
+class Drawer {
   public:
-    const double m; // mass
-    Vect r, v;      // position, velocity
-    std::mutex lock;
-    std::string color;
-
-    Body(double mass, const Vect &initial_position,
-         const Vect &initial_velocity, const std::string &color = "blue")
-        : m(mass), r(initial_position), v(initial_velocity), color(color) {}
-};
-
-std::ostream &operator<<(std::ostream &os, const Body &body) {
-    return os << "Body(" << body.m << ", " << body.r << ", " << body.v << ")";
-}
-
-void compute_forces(std::vector<Body *> &bodies, size_t start, size_t end,
-                    double dt) {
-    size_t n = bodies.size();
-    for (size_t i = start; i < end; i++) {
-        for (size_t j = i + 1; j < n; j++) {
-            Vect dr = bodies[j]->r - bodies[i]->r;
-
-            double dist_sq = dr.norm2();
-            double dist = sqrt(dist_sq);
-            double force_mag = G * bodies[i]->m * bodies[j]->m / dist_sq;
-            Vect force = force_mag / dist * dr;
-
-            bodies[i]->lock.lock();
-            bodies[i]->v = bodies[i]->v + force / bodies[i]->m * dt;
-            bodies[i]->lock.unlock();
-
-            bodies[j]->lock.lock();
-            bodies[j]->v = bodies[j]->v - force / bodies[j]->m * dt;
-            bodies[j]->lock.unlock();
-        }
-    }
-}
-
-void update_positions(std::vector<Body *> &bodies, int start, int end,
-                      double dt) {
-    for (int i = start; i < end; i++)
-        bodies[i]->r = bodies[i]->r + bodies[i]->v * dt;
-}
-
-void simulate(std::vector<Body *> &bodies, int num_threads, double dt,
-              int num_steps) {
-    int n = bodies.size();
-    std::vector<std::thread> threads(num_threads);
-    for (int step = 0; step < num_steps; step++) {
-        // Compute forces
-        int chunk_size = n / num_threads;
-        int start = 0;
-        int end = chunk_size;
-        for (int i = 0; i < num_threads; i++) {
-            if (i == num_threads - 1) {
-                end = n;
-            }
-            threads[i] =
-                std::thread(compute_forces, ref(bodies), start, end, dt);
-            start = end;
-            end += chunk_size;
-        }
-        for (auto &t : threads) {
-            t.join();
-        }
-
-        // Update positions
-        start = 0;
-        end = chunk_size;
-        for (int i = 0; i < num_threads; i++) {
-            if (i == num_threads - 1) {
-                end = n;
-            }
-            threads[i] =
-                std::thread(update_positions, ref(bodies), start, end, dt);
-            start = end;
-            end += chunk_size;
-        }
-        for (auto &t : threads) {
-            t.join();
-        }
-    }
-}
-
-std::mutex draw_lock;
-std::condition_variable draw_signal;
-const Vect canvas_size{800, 500};
-
-void draw(std::vector<Magick::Image> &images, const std::vector<Body *> &bodies,
-          double &draw_t, double &current_t, double end_t) {
-    std::unique_lock<std::mutex> lock(draw_lock);
-    while (draw_t < end_t) {
-        while (draw_t < current_t)
-            draw_signal.wait(lock);
-        images.emplace_back(Magick::Geometry(canvas_size.x, canvas_size.y),
-                            Magick::Color("white"));
-        for (const Body *body : bodies) {
-            images.back().fillColor(body->color);
-            images.back().draw(Magick::DrawableCircle(
-                body->r.x, body->r.y, body->r.x - 10, body->r.y));
-        }
-    }
-}
-
-int main(int argc, char **argv) {
-    Magick::InitializeMagick(*argv);
-    int num_bodies = 2;  // to be precised
-    int num_threads = 2; // to be precised
-    double dt = 1e-3;
-    double t_end = 100;
-    int start = 0;
-    int end = 2;
-
-    // double vy = sqrt(G * 1e14 / 100);
-    const Vect offset = canvas_size / 2;
-    double vy = 0;
-    Body b1 = Body(1e14, offset + Vect{0, 0}, {0, vy}, "blue");
-    Body b2 = Body(1e14, offset + Vect{100, 0}, {0, -vy}, "red");
-    Body b3 =
-        Body(1, offset + Vect{0, -50}, {sqrt(1.2 * G * 1e14 / 50), 0}, "green");
-    std::cout << "body created" << std::endl;
-
-    std::vector<Body *> bodies{&b1, &b3};
-
     std::vector<Magick::Image> images;
-    double gif_dt = 1;
-    double gif_t = 0;
+    double draw_t = 0;
+    bool draw_pending = false;
+    std::vector<Vect> draw_r;
+    const std::vector<std::string> &colors;
+    std::thread draw_thread;
+    std::mutex draw_lock;
+    std::condition_variable draw_signal;
 
-    double t = 0;
+    Drawer(const std::vector<std::string> &colors)
+        : colors(colors), draw_thread(&Drawer::draw, this) {}
 
-    std::thread draw_thread(draw, std::ref(images), std::ref(bodies),
-                            std::ref(gif_t), std::ref(t), t_end);
+    static void draw(Drawer *drawer_pt) {
+        Drawer &drawer = *drawer_pt;
 
-    for (; t <= t_end; t += dt) {
-        compute_forces(bodies, start, end, dt);
-        update_positions(bodies, start, end, dt);
-        if (t >= gif_t) {
-            std::lock_guard<std::mutex> _lk(draw_lock);
-            gif_t += gif_dt;
+        std::unique_lock<std::mutex> lock(drawer.draw_lock);
+        const Magick::Geometry image_size(canvas_width, canvas_height);
+        const Magick::Color background_color("white");
+
+        while (drawer.draw_t < t_end) {
+            while (!drawer.draw_pending)
+                drawer.draw_signal.wait(lock);
+            drawer.images.emplace_back(image_size, background_color);
+            for (size_t i = 0; i < drawer.draw_r.size(); ++i) {
+                const Vect &r = drawer.draw_r[i];
+                drawer.images.back().fillColor(drawer.colors[i]);
+                drawer.images.back().draw(
+                    Magick::DrawableCircle(r.x, r.y, r.x - 5, r.y));
+            }
+            drawer.draw_pending = false;
+            drawer.draw_signal.notify_all();
+        }
+    }
+    void trigger_draw(double t, std::vector<Vect> *curr_r) {
+        if (t >= draw_t) {
+            std::unique_lock<std::mutex> lock(draw_lock);
+
+            // wait until the draw thread has finished drawing
+            while (draw_pending)
+                draw_signal.wait(lock);
+            draw_t += draw_dt;
+            draw_r = *curr_r;
+
+            // trigger the drawing thread
+            draw_pending = true;
             draw_signal.notify_one();
         }
     }
-    draw_thread.join();
-    std::cout << "rendering done, exporting images" << std::endl;
-    Magick::writeImages(images.begin(), images.end(), "image.gif");
+    ~Drawer() {
+        draw_thread.join();
+        std::cout << "rendering done, exporting images" << std::endl;
+        Magick::writeImages(images.begin(), images.end(), "image.gif");
+        std::cout << "image written to "
+                  << "image.gif" << std::endl;
+    }
+};
+
+struct Scenario {
+    std::vector<double> m;
+    std::vector<Vect> r;
+    std::vector<Vect> v;
+    std::vector<std::string> colors;
+};
+
+void compute_forces(Scenario &bodies, size_t start, size_t end, double dt) {
+    size_t n = bodies.r.size();
+    for (size_t i = start; i < end; i++) {
+        for (size_t j = i + 1; j < n; j++) {
+            Vector dr = bodies.r[j] - bodies.r[i];
+
+            double dist_sq = dr.norm2();
+            double dist = sqrt(dist_sq);
+            double force_mag = G * bodies.m[i] * bodies.m[j] / dist_sq;
+            Vector force = dr * (force_mag / dist);
+
+            bodies.v[i] = bodies.v[i] + force * (dt / bodies.m[i]);
+            bodies.v[j] = bodies.v[j] - force * (dt / bodies.m[j]);
+        }
+    }
+}
+
+void update_positions(Scenario &bodies, int start, int end, double dt) {
+    for (int i = start; i < end; i++)
+        bodies.r[i] = bodies.r[i] + bodies.v[i] * dt;
+}
+
+void single_thread(Scenario &bodies, Drawer &drawer) {
+    for (double t = 0; t <= t_end; t += dt) {
+        drawer.trigger_draw(t, &bodies.r);
+
+        compute_forces(bodies, 0, bodies.r.size(), dt);
+        update_positions(bodies, 0, bodies.r.size(), dt);
+    }
+}
+
+// void multi_thread_aux(ThreadArgs &args, size_t start, size_t end) {
+//     size_t n = args.curr_r->size();
+//     for (double t = 0; t <= t_end; t += dt) {
+//         for (size_t i = start; i < end; i++) {
+//             for (size_t j = i + 1; j < n; j++) {
+//                 Vector dr = (*args.curr_r)[j] - (*args.curr_r)[i];
+
+//                 double dist_sq = dr.norm2();
+//                 double dist = sqrt(dist_sq);
+//                 double force_mag = G * args.m[i] * args.m[j] / dist_sq;
+//                 Vector force = dr * (force_mag / dist);
+
+//                 args.v[i] += force * (dt * dt / args.m[i]);
+//                 args.v[j] -= force * (dt * dt / args.m[j]);
+//             }
+//         }
+
+//         args.barrier.arrive_and_wait();
+//         std::cout << t << std::endl;
+
+//         for (size_t i = start; i < end; i++) {
+//             (*args.next_r)[i] = (*args.curr_r)[i] + args.v[i];
+//         }
+
+//         args.barrier.arrive_and_wait();
+//         std::cout << t << std::endl;
+//     }
+// }
+
+// void multi_thread(Scenario &bodies, double &draw_t, std::vector<Vect>
+// &draw_pos,
+//                   bool &draw_pending) {
+//     size_t n = bodies.r.size();
+//     std::vector<std::thread> threads(n_threads - 1);
+//     std::vector<Vect> r1 = bodies.r, r2(n);
+//     std::vector<Vect> *curr_r = &r1, *next_r = &r2;
+//     std::vector<AVect> v(n);
+//     for (size_t i = 0; i < n; ++i) {
+//         v[i].x = bodies.v[i].x;
+//         v[i].y = bodies.v[i].y;
+//     }
+
+//     size_t chunk_size = n / n_threads;
+//     std::barrier barrier(n_threads);
+//     ThreadArgs args{.curr_r = curr_r,
+//                     .next_r = next_r,
+//                     .v = v,
+//                     .m = bodies.m,
+//                     .common_t = 0,
+//                     .pending_count = n_threads,
+//                     .draw_pending = draw_pending,
+//                     .draw_lock = draw_lock,
+//                     .draw_signal = draw_signal,
+//                     .draw_pos = draw_pos,
+//                     .draw_t = draw_t,
+//                     .barrier = barrier};
+//     for (size_t i = 0; i < n_threads - 1; ++i) {
+//         threads[i] = std::thread(multi_thread_aux, std::ref(args),
+//                                  i * chunk_size, (i + 1) * chunk_size);
+//     }
+//     multi_thread_aux(args, (n_threads - 1) * chunk_size, n);
+
+//     for (size_t i = 0; i < n_threads - 1; ++i) {
+//         threads[i].join();
+//     }
+// }
+
+int main(int argc, char **argv) {
+    Magick::InitializeMagick(*argv);
+
+    // setup scenario
+    const Vect offset = {canvas_width / 2, canvas_height / 2};
+    std::cout << "body created" << std::endl;
+    Scenario bodies{
+        {1e14, 1},
+        {offset + Vect(0, 0), offset + Vect(0, -50)},
+        {{0, 0}, {sqrt(1.2 * G * 1e14 / 50), 0}},
+        {"red", "green"},
+    };
+
+    // setup drawing thread
+    Drawer drawer(bodies.colors);
+
+    single_thread(bodies, drawer);
+
+    // drawer.terminate();
 }

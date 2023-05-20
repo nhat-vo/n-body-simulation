@@ -1,5 +1,5 @@
 CXX = g++
-CFLAGS = -O3 -pthread -std=c++17 -Wall -g `Magick++-config --cppflags --cxxflags --ldflags --libs`
+CFLAGS = -O3 -pthread -std=c++20 -Wall -g `Magick++-config --cppflags --cxxflags --ldflags --libs`
 
 
 OBJECTS = main.o
