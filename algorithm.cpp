@@ -14,6 +14,10 @@
 
 const double G = 6.67e-11;
 const double PI = 3.1415926535;
+const size_t N_BODIES = 100;
+
+inline double uniform() { return (double)rand() / RAND_MAX; }
+inline size_t discrete_uniform(size_t n) { return rand() % n; }
 
 namespace config {
 const double dt = 1e-3;
@@ -144,7 +148,7 @@ void compute_forces(Scenario &bodies, size_t start, size_t end, double dt) {
         for (size_t j = i + 1; j < n; j++) {
             Vector dr = bodies.r[j] - bodies.r[i];
 
-            double dist_sq = dr.norm2();
+            double dist_sq = std::max(dr.norm2(), 1e-6);
             double dist = sqrt(dist_sq);
             double force_mag = G * bodies.m[i] * bodies.m[j] / dist_sq;
             Vector force = dr * (force_mag / dist);
@@ -160,11 +164,8 @@ void update_positions(Scenario &bodies, int start, int end, double dt) {
         bodies.r[i] = bodies.r[i] + bodies.v[i] * dt;
 }
 
-void single_thread(Scenario &bodies, Drawer &drawer, double period) {
+void single_thread(Scenario &bodies, Drawer &drawer) {
     for (double t = 0; t <= t_end; t += dt) {
-        if (abs(t - period) < dt / 2) {
-            std::cout << bodies.r[1].x << " " << bodies.r[1].y << std::endl;
-        }
         drawer.trigger_draw(t, &bodies.r);
 
         compute_forces(bodies, 0, bodies.r.size(), dt);
@@ -176,7 +177,7 @@ void multi_thread_naive(Scenario &bodies, Drawer &drawer) {
     size_t n = bodies.r.size();
     size_t chunk_size = n / n_threads;
     if (chunk_size == 0) {
-        single_thread(bodies, drawer, 0);
+        single_thread(bodies, drawer);
         return;
     }
     std::vector<std::thread> threads(n_threads - 1);
@@ -215,22 +216,33 @@ int main(int argc, char **argv) {
     std::cout << "body created" << std::endl;
 
     double v = sqrt(1 * G * 1e14 / 50);
-    Scenario bodies{
-        {1e14, 1},
-        {offset + Vect(0, 0), offset + Vect(0, -50)},
-        {{0, 0}, {v, 0}},
-        {"red", "green"},
-    };
-    double period = 2 * PI * sqrt(pow(50, 3) / (G * 1e14));
-    std::cout << "Original position: " << bodies.r[1].x << " " << bodies.r[1].y
-              << std::endl;
+    // Scenario bodies{
+    //     {1e14, 1},
+    //     {offset + Vect(0, 0), offset + Vect(0, -50)},
+    //     {{0, 0}, {v, 0}},
+    //     {"red", "green"},
+    // };
+    Scenario bodies{{1e14}, {offset + Vect(0, 0)}, {{0, 0}}, {"red"}};
+    std::vector<std::string> colors{"blue", "green",  "gold",   "grey",
+                                    "pink", "orange", "purple", "brown"};
+    for (size_t i = 0; i < N_BODIES; ++i) {
+        bodies.m.push_back(10 + 5 * uniform());
+        bodies.colors.push_back(colors[rand() % colors.size()]);
+        bodies.r.push_back(Vect((0.5 + 0.2 * uniform()) * canvas_width,
+                                (0.5 + 0.2 * uniform()) * canvas_height));
+        Vect dir = bodies.r.back() - bodies.r.front();
+        double dist = dir.norm();
+        double v = sqrt((0.5 + uniform()) * G * bodies.m.front() / dist);
+        dir = dir / dist;
+        bodies.v.push_back({v * (-dir.y), v * dir.x});
+    }
 
     // setup drawing thread
     Drawer drawer(bodies.colors);
 
     std::cout << "Staring simulation..." << std::endl;
     auto start = std::chrono::steady_clock::now();
-    single_thread(bodies, drawer, period);
+    multi_thread_naive(bodies, drawer);
     auto end = std::chrono::steady_clock::now();
     std::chrono::duration<double> duration = end - start;
     std::cout << "Simulation ended. Took " << duration.count() << "s"
