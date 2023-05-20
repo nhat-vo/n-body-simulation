@@ -7,6 +7,7 @@
 #include <ctime>
 #include <format>
 #include <functional>
+#include <future>
 #include <iostream>
 #include <mutex>
 #include <thread>
@@ -24,12 +25,12 @@ const double dt = 1e-3;
 const double t_end = 100;
 const double draw_dt = 1;
 const size_t canvas_width = 400, canvas_height = 400;
-const size_t n_threads = 2;
+const size_t n_threads = 3;
 } // namespace config
 
 using namespace config;
 
-template <typename T> class Vector {
+class Vector {
   public:
     double x, y;
     Vector(double x, double y) : x(x), y(y) {}
@@ -37,26 +38,18 @@ template <typename T> class Vector {
     double norm2() { return x * x + y * y; }
     double norm() { return sqrt(x * x + y * y); }
 
-    template <typename U> void operator+=(const Vector<U> &b) {
+    void operator+=(const Vector &b) {
         x += b.x;
         y += b.y;
     }
-    template <typename U> void operator-=(const Vector<U> &b) {
+    void operator-=(const Vector &b) {
         x -= b.x;
         y -= b.y;
     }
-    template <typename U> Vector operator+(const Vector<U> &b) const {
-        return {x + b.x, y + b.y};
-    }
-    template <typename U> Vector operator-(const Vector<U> &b) const {
-        return {x - b.x, y - b.y};
-    }
-    template <typename U> Vector operator*(const Vector<U> &b) const {
-        return {x * b.x, y * b.y};
-    }
-    template <typename U> Vector operator/(const Vector<U> &b) const {
-        return {x / b.x, y / b.y};
-    }
+    Vector operator+(const Vector &b) const { return {x + b.x, y + b.y}; }
+    Vector operator-(const Vector &b) const { return {x - b.x, y - b.y}; }
+    Vector operator*(const Vector &b) const { return {x * b.x, y * b.y}; }
+    Vector operator/(const Vector &b) const { return {x / b.x, y / b.y}; }
 
     Vector operator+(double b) { return {x + b, y + b}; }
     Vector operator-(double b) { return {x - b, y - b}; }
@@ -64,8 +57,7 @@ template <typename T> class Vector {
     Vector operator/(double b) { return {x / b, y / b}; }
 };
 
-typedef Vector<double> Vect;
-typedef Vector<std::atomic<double>> AVect;
+typedef Vector Vect;
 
 class Drawer {
   public:
@@ -138,7 +130,7 @@ class Drawer {
 struct Scenario {
     std::vector<double> m;
     std::vector<Vect> r;
-    std::vector<AVect> v;
+    std::vector<Vect> v;
     std::vector<std::string> colors;
 };
 
@@ -159,7 +151,8 @@ void compute_forces(Scenario &bodies, size_t start, size_t end, double dt) {
     }
 }
 
-void update_positions(Scenario &bodies, int start, int end, double dt) {
+template <typename T>
+void update_positions(T &bodies, int start, int end, double dt) {
     for (int i = start; i < end; i++)
         bodies.r[i] = bodies.r[i] + bodies.v[i] * dt;
 }
@@ -173,38 +166,46 @@ void single_thread(Scenario &bodies, Drawer &drawer) {
     }
 }
 
-void multi_thread_naive(Scenario &bodies, Drawer &drawer) {
+void multi_thread_1_aux(Scenario &bodies, std::vector<Vect> &curr,
+                        std::vector<Vect> &next, size_t start, size_t end) {
+    size_t n = bodies.r.size();
+    for (size_t i = start; i < end; i++) {
+        for (size_t j = 0; j < n; j++) {
+            if (i == j)
+                continue;
+            Vector dr = curr[j] - curr[i];
+
+            double dist_sq = std::max(dr.norm2(), 1e-6);
+            double dist = sqrt(dist_sq);
+            double force_mag = G * bodies.m[i] * bodies.m[j] / dist_sq;
+            Vector force = dr * (force_mag / dist);
+
+            bodies.v[i] += force * (dt / bodies.m[i]);
+        }
+        next[i] = curr[i] + bodies.v[i] * dt;
+    }
+}
+
+void multi_thread_1(Scenario &bodies, Drawer &drawer) {
     size_t n = bodies.r.size();
     size_t chunk_size = n / n_threads;
-    if (chunk_size == 0) {
-        single_thread(bodies, drawer);
-        return;
-    }
-    std::vector<std::thread> threads(n_threads - 1);
-    std::vector<Vect> r1 = bodies.r, r2(n);
-    std::vector<AVect> v(n);
-    for (size_t i = 0; i < n; ++i) {
-        v[i].x = bodies.v[i].x;
-        v[i].y = bodies.v[i].y;
-    }
+    std::thread threads[n_threads - 1];
+    std::vector<Vect> tmp_r(n);
+    std::vector<Vect> *curr = &bodies.r, *next = &tmp_r;
 
     for (double t = 0; t <= t_end; t += dt) {
-        drawer.trigger_draw(t, &bodies.r);
+        drawer.trigger_draw(t, curr);
         for (size_t i = 0; i < n_threads - 1; ++i) {
-            threads[i] = std::thread(compute_forces, std::ref(bodies),
-                                     i * chunk_size, (i + 1) * chunk_size, dt);
+            threads[i] = std::thread(multi_thread_1_aux, std::ref(bodies),
+                                     std::ref(*curr), std::ref(*next),
+                                     i * chunk_size, (i + 1) * chunk_size);
         }
-        compute_forces(bodies, (n_threads - 1) * chunk_size, n, dt);
-        for (size_t i = 0; i < n_threads - 1; ++i)
-            threads[i].join();
-
+        multi_thread_1_aux(bodies, *curr, *next, (n_threads - 1) * chunk_size,
+                           n);
         for (size_t i = 0; i < n_threads - 1; ++i) {
-            threads[i] = std::thread(update_positions, std::ref(bodies),
-                                     i * chunk_size, (i + 1) * chunk_size, dt);
-        }
-        update_positions(bodies, (n_threads - 1) * chunk_size, n, dt);
-        for (size_t i = 0; i < n_threads - 1; ++i)
             threads[i].join();
+        }
+        std::swap(curr, next);
     }
 }
 
@@ -230,6 +231,7 @@ int main(int argc, char **argv) {
         bodies.colors.push_back(colors[rand() % colors.size()]);
         bodies.r.push_back(Vect((0.5 + 0.2 * uniform()) * canvas_width,
                                 (0.5 + 0.2 * uniform()) * canvas_height));
+
         Vect dir = bodies.r.back() - bodies.r.front();
         double dist = dir.norm();
         double v = sqrt((0.5 + uniform()) * G * bodies.m.front() / dist);
@@ -241,9 +243,11 @@ int main(int argc, char **argv) {
     Drawer drawer(bodies.colors);
 
     std::cout << "Staring simulation..." << std::endl;
+
     auto start = std::chrono::steady_clock::now();
-    multi_thread_naive(bodies, drawer);
+    multi_thread_1(bodies, drawer);
     auto end = std::chrono::steady_clock::now();
+
     std::chrono::duration<double> duration = end - start;
     std::cout << "Simulation ended. Took " << duration.count() << "s"
               << std::endl;
