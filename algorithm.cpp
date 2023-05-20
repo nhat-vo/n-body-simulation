@@ -1,14 +1,12 @@
+// #define VISUALIZE
+#ifdef VISUALIZE
 #include <Magick++.h>
-#include <atomic>
-#include <barrier>
+#endif
+
 #include <chrono>
 #include <cmath>
-#include <condition_variable>
-#include <ctime>
-#include <functional>
 #include <iostream>
 #include <list>
-#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -24,7 +22,7 @@ const double dt = 1e-2;
 const double t_end = 100;
 const double draw_dt = 1;
 const size_t canvas_width = 400, canvas_height = 400;
-const size_t n_threads = 3;
+const size_t n_threads = 1;
 } // namespace config
 
 using namespace config;
@@ -58,6 +56,7 @@ class Vector {
 
 typedef Vector Vect;
 
+#ifdef VISUALIZE
 class Drawer {
   private:
     const Magick::Geometry image_size;
@@ -121,6 +120,7 @@ class Drawer {
         }
     }
 };
+#endif
 
 struct Scenario {
     std::vector<double> m;
@@ -151,9 +151,15 @@ void update_positions(Scenario &bodies, int start, int end, double dt) {
         bodies.r[i] = bodies.r[i] + bodies.v[i] * dt;
 }
 
+#ifdef VISUALIZE
 void single_thread(Scenario &bodies, Drawer &drawer) {
+#else
+void single_thread(Scenario &bodies) {
+#endif
     for (double t = 0; t <= t_end; t += dt) {
+#ifdef VISUALIZE
         drawer.trigger_draw(t, &bodies.r);
+#endif
 
         compute_forces(bodies, 0, bodies.r.size(), dt);
         update_positions(bodies, 0, bodies.r.size(), dt);
@@ -202,7 +208,11 @@ void multi_thread_1_aux(Scenario &bodies, std::vector<Vect> &curr,
     }
 }
 
+#ifdef VISUALIZE
 void multi_thread_1(Scenario &bodies, Drawer &drawer) {
+#else
+void multi_thread_1(Scenario &bodies) {
+#endif
     size_t n = bodies.r.size();
     size_t chunk_size = n / n_threads;
     std::thread threads[n_threads - 1];
@@ -210,7 +220,9 @@ void multi_thread_1(Scenario &bodies, Drawer &drawer) {
     std::vector<Vect> *curr = &bodies.r, *next = &tmp_r;
 
     for (double t = 0; t <= t_end; t += dt) {
+#ifdef VISUALIZE
         drawer.trigger_draw(t, curr);
+#endif
         for (size_t i = 0; i < n_threads - 1; ++i) {
             threads[i] = std::thread(multi_thread_1_aux, std::ref(bodies),
                                      std::ref(*curr), std::ref(*next),
@@ -226,13 +238,15 @@ void multi_thread_1(Scenario &bodies, Drawer &drawer) {
 }
 
 int main(int argc, char **argv) {
+#ifdef VISUALIZE
     Magick::InitializeMagick(*argv);
+#endif
 
     // setup scenario
     const Vect offset = {canvas_width / 2, canvas_height / 2};
     std::cout << "body created" << std::endl;
 
-    double v = sqrt(1 * G * 1e14 / 50);
+    // double v = sqrt(1 * G * 1e14 / 50);
     // Scenario bodies{
     //     {1e14, 1},
     //     {offset + Vect(0, 0), offset + Vect(0, -50)},
@@ -255,13 +269,19 @@ int main(int argc, char **argv) {
         bodies.v.push_back({v * (-dir.y), v * dir.x});
     }
 
+#ifdef VISUALIZE
     // setup drawing thread
     Drawer drawer(bodies.colors);
+#endif
 
     std::cout << "Staring simulation..." << std::endl;
 
     auto start = std::chrono::steady_clock::now();
+#ifdef VISUALIZE
     multi_thread_1(bodies, drawer);
+#else
+    multi_thread_1(bodies);
+#endif
     auto end = std::chrono::steady_clock::now();
 
     std::chrono::duration<double> duration = end - start;
