@@ -1,8 +1,10 @@
 #include <Magick++.h>
 #include <atomic>
 #include <barrier>
+#include <chrono>
 #include <cmath>
 #include <condition_variable>
+#include <ctime>
 #include <format>
 #include <functional>
 #include <iostream>
@@ -10,12 +12,18 @@
 #include <thread>
 #include <vector>
 
-const double G = 6.67e-11; // gravitational constant
+const double G = 6.67e-11;
+const double PI = 3.1415926535;
+
+namespace config {
 const double dt = 1e-3;
 const double t_end = 100;
 const double draw_dt = 1;
-const size_t canvas_width = 800, canvas_height = 500;
+const size_t canvas_width = 400, canvas_height = 400;
 const size_t n_threads = 2;
+} // namespace config
+
+using namespace config;
 
 template <typename T> class Vector {
   public:
@@ -79,13 +87,22 @@ class Drawer {
         while (drawer.draw_t < t_end) {
             while (!drawer.draw_pending)
                 drawer.draw_signal.wait(lock);
+
             drawer.images.emplace_back(image_size, background_color);
+            auto &frame = drawer.images.back();
+
             for (size_t i = 0; i < drawer.draw_r.size(); ++i) {
                 const Vect &r = drawer.draw_r[i];
-                drawer.images.back().fillColor(drawer.colors[i]);
-                drawer.images.back().draw(
-                    Magick::DrawableCircle(r.x, r.y, r.x - 5, r.y));
+                double x = r.x, y = (double)canvas_height - r.y;
+                frame.fillColor(drawer.colors[i]);
+                frame.draw(Magick::DrawableCircle(x, y, x - 5, y));
             }
+
+            frame.strokeColor("black");
+            frame.draw(Magick::DrawableText(
+                10, canvas_height - 10,
+                "t = " + std::to_string((int)drawer.draw_t)));
+
             drawer.draw_pending = false;
             drawer.draw_signal.notify_all();
         }
@@ -117,7 +134,7 @@ class Drawer {
 struct Scenario {
     std::vector<double> m;
     std::vector<Vect> r;
-    std::vector<Vect> v;
+    std::vector<AVect> v;
     std::vector<std::string> colors;
 };
 
@@ -132,8 +149,8 @@ void compute_forces(Scenario &bodies, size_t start, size_t end, double dt) {
             double force_mag = G * bodies.m[i] * bodies.m[j] / dist_sq;
             Vector force = dr * (force_mag / dist);
 
-            bodies.v[i] = bodies.v[i] + force * (dt / bodies.m[i]);
-            bodies.v[j] = bodies.v[j] - force * (dt / bodies.m[j]);
+            bodies.v[i] += force * (dt / bodies.m[i]);
+            bodies.v[j] -= force * (dt / bodies.m[j]);
         }
     }
 }
@@ -143,8 +160,11 @@ void update_positions(Scenario &bodies, int start, int end, double dt) {
         bodies.r[i] = bodies.r[i] + bodies.v[i] * dt;
 }
 
-void single_thread(Scenario &bodies, Drawer &drawer) {
+void single_thread(Scenario &bodies, Drawer &drawer, double period) {
     for (double t = 0; t <= t_end; t += dt) {
+        if (abs(t - period) < dt / 2) {
+            std::cout << bodies.r[1].x << " " << bodies.r[1].y << std::endl;
+        }
         drawer.trigger_draw(t, &bodies.r);
 
         compute_forces(bodies, 0, bodies.r.size(), dt);
@@ -152,72 +172,40 @@ void single_thread(Scenario &bodies, Drawer &drawer) {
     }
 }
 
-// void multi_thread_aux(ThreadArgs &args, size_t start, size_t end) {
-//     size_t n = args.curr_r->size();
-//     for (double t = 0; t <= t_end; t += dt) {
-//         for (size_t i = start; i < end; i++) {
-//             for (size_t j = i + 1; j < n; j++) {
-//                 Vector dr = (*args.curr_r)[j] - (*args.curr_r)[i];
+void multi_thread_naive(Scenario &bodies, Drawer &drawer) {
+    size_t n = bodies.r.size();
+    size_t chunk_size = n / n_threads;
+    if (chunk_size == 0) {
+        single_thread(bodies, drawer, 0);
+        return;
+    }
+    std::vector<std::thread> threads(n_threads - 1);
+    std::vector<Vect> r1 = bodies.r, r2(n);
+    std::vector<AVect> v(n);
+    for (size_t i = 0; i < n; ++i) {
+        v[i].x = bodies.v[i].x;
+        v[i].y = bodies.v[i].y;
+    }
 
-//                 double dist_sq = dr.norm2();
-//                 double dist = sqrt(dist_sq);
-//                 double force_mag = G * args.m[i] * args.m[j] / dist_sq;
-//                 Vector force = dr * (force_mag / dist);
+    for (double t = 0; t <= t_end; t += dt) {
+        drawer.trigger_draw(t, &bodies.r);
+        for (size_t i = 0; i < n_threads - 1; ++i) {
+            threads[i] = std::thread(compute_forces, std::ref(bodies),
+                                     i * chunk_size, (i + 1) * chunk_size, dt);
+        }
+        compute_forces(bodies, (n_threads - 1) * chunk_size, n, dt);
+        for (size_t i = 0; i < n_threads - 1; ++i)
+            threads[i].join();
 
-//                 args.v[i] += force * (dt * dt / args.m[i]);
-//                 args.v[j] -= force * (dt * dt / args.m[j]);
-//             }
-//         }
-
-//         args.barrier.arrive_and_wait();
-//         std::cout << t << std::endl;
-
-//         for (size_t i = start; i < end; i++) {
-//             (*args.next_r)[i] = (*args.curr_r)[i] + args.v[i];
-//         }
-
-//         args.barrier.arrive_and_wait();
-//         std::cout << t << std::endl;
-//     }
-// }
-
-// void multi_thread(Scenario &bodies, double &draw_t, std::vector<Vect>
-// &draw_pos,
-//                   bool &draw_pending) {
-//     size_t n = bodies.r.size();
-//     std::vector<std::thread> threads(n_threads - 1);
-//     std::vector<Vect> r1 = bodies.r, r2(n);
-//     std::vector<Vect> *curr_r = &r1, *next_r = &r2;
-//     std::vector<AVect> v(n);
-//     for (size_t i = 0; i < n; ++i) {
-//         v[i].x = bodies.v[i].x;
-//         v[i].y = bodies.v[i].y;
-//     }
-
-//     size_t chunk_size = n / n_threads;
-//     std::barrier barrier(n_threads);
-//     ThreadArgs args{.curr_r = curr_r,
-//                     .next_r = next_r,
-//                     .v = v,
-//                     .m = bodies.m,
-//                     .common_t = 0,
-//                     .pending_count = n_threads,
-//                     .draw_pending = draw_pending,
-//                     .draw_lock = draw_lock,
-//                     .draw_signal = draw_signal,
-//                     .draw_pos = draw_pos,
-//                     .draw_t = draw_t,
-//                     .barrier = barrier};
-//     for (size_t i = 0; i < n_threads - 1; ++i) {
-//         threads[i] = std::thread(multi_thread_aux, std::ref(args),
-//                                  i * chunk_size, (i + 1) * chunk_size);
-//     }
-//     multi_thread_aux(args, (n_threads - 1) * chunk_size, n);
-
-//     for (size_t i = 0; i < n_threads - 1; ++i) {
-//         threads[i].join();
-//     }
-// }
+        for (size_t i = 0; i < n_threads - 1; ++i) {
+            threads[i] = std::thread(update_positions, std::ref(bodies),
+                                     i * chunk_size, (i + 1) * chunk_size, dt);
+        }
+        update_positions(bodies, (n_threads - 1) * chunk_size, n, dt);
+        for (size_t i = 0; i < n_threads - 1; ++i)
+            threads[i].join();
+    }
+}
 
 int main(int argc, char **argv) {
     Magick::InitializeMagick(*argv);
@@ -225,17 +213,26 @@ int main(int argc, char **argv) {
     // setup scenario
     const Vect offset = {canvas_width / 2, canvas_height / 2};
     std::cout << "body created" << std::endl;
+
+    double v = sqrt(1 * G * 1e14 / 50);
     Scenario bodies{
         {1e14, 1},
         {offset + Vect(0, 0), offset + Vect(0, -50)},
-        {{0, 0}, {sqrt(1.2 * G * 1e14 / 50), 0}},
+        {{0, 0}, {v, 0}},
         {"red", "green"},
     };
+    double period = 2 * PI * sqrt(pow(50, 3) / (G * 1e14));
+    std::cout << "Original position: " << bodies.r[1].x << " " << bodies.r[1].y
+              << std::endl;
 
     // setup drawing thread
     Drawer drawer(bodies.colors);
 
-    single_thread(bodies, drawer);
-
-    // drawer.terminate();
+    std::cout << "Staring simulation..." << std::endl;
+    auto start = std::chrono::steady_clock::now();
+    single_thread(bodies, drawer, period);
+    auto end = std::chrono::steady_clock::now();
+    std::chrono::duration<double> duration = end - start;
+    std::cout << "Simulation ended. Took " << duration.count() << "s"
+              << std::endl;
 }
