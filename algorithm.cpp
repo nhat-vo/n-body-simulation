@@ -1,6 +1,6 @@
-#include "common.hpp"
-#include "vect.hpp"
-#include "visualizer.hpp"
+// #include "common.hpp"
+// #include "visualizer.hpp"
+#include "barnes-hutt.cpp"
 
 #include <chrono>
 #include <cmath>
@@ -10,13 +10,6 @@
 #include <vector>
 
 using namespace config;
-
-struct Scenario {
-    std::vector<double> m;
-    std::vector<Vect> r;
-    std::vector<Vect> v;
-    std::vector<std::string> colors;
-};
 
 void compute_forces(Scenario &bodies, size_t start, size_t end, double dt) {
     size_t n = bodies.r.size();
@@ -50,8 +43,10 @@ void single_thread(Scenario &bodies, size_t n_threads) {
         drawer.trigger_draw(t, &bodies.r);
 #endif
 
-        compute_forces(bodies, 0, bodies.r.size(), dt);
-        update_positions(bodies, 0, bodies.r.size(), dt);
+        constructBarnesHutTree(bodies);
+
+        // compute_forces(bodies, 0, bodies.r.size(), dt);
+        // update_positions(bodies, 0, bodies.r.size(), dt);
     }
 }
 

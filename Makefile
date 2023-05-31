@@ -3,12 +3,12 @@ MAGICK = `Magick++-config --cppflags --cxxflags --ldflags --libs`
 DFLAGS = -DVISUALIZE
 CFLAGS = -O3 -pthread -std=c++20 -Wall -g $(MAGICK) $(DFLAGS)
 
-SOURCES = algorithm.cpp vect.hpp visualizer.hpp common.hpp
+SOURCES = algorithm.cpp vect.hpp visualizer.hpp common.hpp barnes-hutt.cpp
 HOST = pologne
 OBJECTS = main.o visualizer.o
 
 main: $(OBJECTS) Makefile
-	$(CXX) $(CFLAGS) -o main $(OBJECTS) 
+	$(CXX) $(CFLAGS) -o main $(OBJECTS)
 
 run: main
 	./main && wslview image.gif
