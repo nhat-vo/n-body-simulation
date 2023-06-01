@@ -26,24 +26,22 @@ struct QuadNode {
     Vect center_of_mass;
     Vect TopLeft;
     Vect dimension;
-    std::vector<Body *> bodies;
+    std::vector<int> body_indexes;
     QuadNode(Vect TopLeft, Vect dimension) : TopLeft(TopLeft), dimension(dimension) {
-        bodies = std::vector<Body *>();
         Vect center_of_mass = Vect(TopLeft.x + dimension.x / 2, TopLeft.y + dimension.y / 2);
-        double mass = 0;
     }
 };
 
 /* ---------------- BARNES-HUT AUX ------------------- */
 
-void updateCenterOfMass(QuadNode *curr, Body *body) {
+void updateCenterOfMass(QuadNode *curr, Scenario *bodies, int index) {
     double m1, m2, m;
 
     m1 = curr->mass;
-    m2 = body->m;
+    m2 = bodies->m[index];
     m = m1 + m2;
 
-    curr->center_of_mass = (curr->center_of_mass * m1 + body->r * m2) / m;
+    curr->center_of_mass = (curr->center_of_mass * m1 + bodies->r[index] * m2) / m;
     curr->mass = m;
 }
 
@@ -66,14 +64,14 @@ Vect calcTopLeft(Vect TopLeft, Vect dimension, int quad) {
 
 /* ---------------- BARNES-HUTT ------------------- */
 
-void BarnesHutRecursion(QuadNode *curr, Body *body) {
+void BarnesHutRecursion(QuadNode *curr, Scenario *bodies, int index) {
 
-    size_t n = curr->bodies.size();
-    curr->bodies.push_back(body);
+    size_t n = curr->body_indexes.size();
+    curr->body_indexes.push_back(index);
 
     // If node is empty, add body to node
     if (n == 0) {
-        updateCenterOfMass(curr, body);
+        updateCenterOfMass(curr, bodies, index);
         return;
     }
 
@@ -82,14 +80,14 @@ void BarnesHutRecursion(QuadNode *curr, Body *body) {
      * because the node was not split yet
      */
     if (n == 1) {
-        int quad_old_body = getQuad(curr->TopLeft, curr->dimension, curr->bodies[0]->r);
+        int quad_old_body = getQuad(curr->TopLeft, curr->dimension, bodies->r[curr->body_indexes[0]]);
         Vect QuadTopLeft = calcTopLeft(curr->TopLeft, curr->dimension, quad_old_body);
         curr->children[quad_old_body] = new QuadNode(QuadTopLeft, curr->dimension / 2);
-        BarnesHutRecursion(curr->children[quad_old_body], curr->bodies[0]);
+        BarnesHutRecursion(curr->children[quad_old_body], bodies, curr->body_indexes[0]);
     }
 
     /* Get quad where new body belongs */
-    int quad_new_body = getQuad(curr->TopLeft, curr->dimension, body->r);
+    int quad_new_body = getQuad(curr->TopLeft, curr->dimension, bodies->r[index]);
 
     /* If the new node is empty, initialize the node */
     if (curr->children[quad_new_body] == nullptr) {
@@ -97,8 +95,8 @@ void BarnesHutRecursion(QuadNode *curr, Body *body) {
         curr->children[quad_new_body] = new QuadNode(QuadTopLeft, curr->dimension / 2);
     }
     /* Add the body to the node and update center of mass */
-    BarnesHutRecursion(curr->children[quad_new_body], body);
-    updateCenterOfMass(curr, body);
+    BarnesHutRecursion(curr->children[quad_new_body], bodies, index);
+    updateCenterOfMass(curr, bodies, index);
 }
 
 bool isFarEnough(QuadNode *curr, Body *body) {
@@ -114,30 +112,28 @@ void constructBarnesHutTree(Scenario bodies) {
     QuadNode *root = new QuadNode(Vect(0, canvas_height), Vect(canvas_width, canvas_height));
     root->mass = bodies.m[0];
     root->center_of_mass = bodies.r[0];
-    Body b = Body(bodies.m[0], bodies.r[0], bodies.v[0], bodies.colors[0]);
-    root->bodies.push_back(&b);
+    root->body_indexes.push_back(0);
 
     // Construct tree with remaining bodies
-    for (int i = 1; i < bodies.r.size(); i++) {
-        Body *b = new Body(bodies.m[i], bodies.r[i], bodies.v[i], bodies.colors[i]);
-        BarnesHutRecursion(root, b);
+    for (size_t i = 1; i < bodies.r.size(); i++) {
+        BarnesHutRecursion(root, &bodies, i);
     }
 
     /* Calculate the force exerted */
-    for (int i = 0; i < bodies.r.size(); i++) {
+    for (size_t i = 0; i < bodies.r.size(); i++) {
         Body b = Body(bodies.m[i], bodies.r[i], bodies.v[i], bodies.colors[i]);
         std::list<QuadNode *> stack;
         stack.push_back(root);
         while (!stack.empty()) {
             QuadNode *curr = stack.back();
             stack.pop_back();
-            size_t n = curr->bodies.size();
+            size_t n = curr->body_indexes.size();
             if (n == 1) {
-                if ((curr->bodies[0]->r - b.r).norm2() > 0) {
-                    Vect dr = curr->bodies[0]->r - bodies.r[i];
+                if ((bodies.r[curr->body_indexes[0]] - b.r).norm2() > 0) {
+                    Vect dr = bodies.r[curr->body_indexes[0]] - bodies.r[i];
                     double dist_sq = std::max(dr.norm2(), 1e-6);
                     double dist = sqrt(dist_sq);
-                    double force_mag = G * curr->bodies[0]->m * b.m / dist_sq;
+                    double force_mag = G * bodies.m[curr->body_indexes[0]] * b.m / dist_sq;
                     Vect force = dr * (force_mag / dist);
                     bodies.v[i] += force * (dt / b.m);
                 }
@@ -155,5 +151,23 @@ void constructBarnesHutTree(Scenario bodies) {
                 }
             }
         }
+    }
+
+    /* Update positions */
+    for (size_t i = 0; i < bodies.r.size(); i++) {
+        bodies.r[i] = bodies.r[i] + bodies.v[i] * dt;
+    }
+
+    /* Delete all allocated quad nodes */
+    std::list<QuadNode *> stack;
+    stack.push_back(root);
+    while (!stack.empty()) {
+        QuadNode *curr = stack.back();
+        stack.pop_back();
+        for (size_t i = 0; i < 4; i++) {
+            if (curr->children[i])
+                stack.push_back(curr->children[i]);
+        }
+        delete curr;
     }
 }
