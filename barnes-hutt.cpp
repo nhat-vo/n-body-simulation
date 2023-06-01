@@ -37,32 +37,24 @@ struct QuadNode {
 /* ---------------- BARNES-HUT AUX ------------------- */
 
 void updateCenterOfMass(QuadNode *curr, Body *body) {
-    double m1, m2, m, x1, x2, x, y1, y2, y;
+    double m1, m2, m;
 
     m1 = curr->mass;
     m2 = body->m;
     m = m1 + m2;
 
-    x1 = curr->center_of_mass.x;
-    x2 = body->r.x;
-    x = (m1 * x1 + m2 * x2) / m;
-
-    y1 = curr->center_of_mass.y;
-    y2 = body->r.y;
-    y = (m1 * y1 + m2 * y2) / m;
-
-    curr->center_of_mass = Vect(x, y);
+    curr->center_of_mass = (curr->center_of_mass * m1 + body->r * m2) / m;
     curr->mass = m;
 }
 
 int getQuad(Vect TopLeft, Vect dimension, Vect r) {
-    Vect center = TopLeft + dimension / 2;
+    Vect center = TopLeft + Vect(dimension.x / 2, - dimension.y / 2);
     return r.x < center.x ? (r.y < center.y ? 2 : 0)
                             : (r.y < center.y ? 3 : 1);
 }
 
 Vect calcTopLeft(Vect TopLeft, Vect dimension, int quad) {
-    Vect center = TopLeft + dimension / 2;
+    Vect center = TopLeft + Vect(dimension.x / 2, - dimension.y / 2);
     switch (quad) {
         case 0: return Vect(TopLeft.x, TopLeft.y);
         case 1: return Vect(center.x, TopLeft.y);
@@ -72,7 +64,7 @@ Vect calcTopLeft(Vect TopLeft, Vect dimension, int quad) {
     };
 }
 
-/* ---------------- BARNES-HUT ------------------- */
+/* ---------------- BARNES-HUTT ------------------- */
 
 void BarnesHutRecursion(QuadNode *curr, Body *body) {
 
@@ -86,7 +78,7 @@ void BarnesHutRecursion(QuadNode *curr, Body *body) {
     }
 
     /* If there is only one body in the node,
-     * create a new node and add body to it
+     * create a new define the sub node of the old
      * because the node was not split yet
      */
     if (n == 1) {
@@ -113,13 +105,13 @@ bool isFarEnough(QuadNode *curr, Body *body) {
     Vect dr = curr->center_of_mass - body->r;
     double dist_sq = std::max(dr.norm2(), 1e-6);
     double dist = sqrt(dist_sq);
-    return curr->dimension.norm() / dist < theta;
+    return curr->dimension.x / dist < theta;
 }
 
 void constructBarnesHutTree(Scenario bodies) {
 
     // Construct root with first body
-    QuadNode *root = new QuadNode(Vect(0, 0), Vect(canvas_width, canvas_height));
+    QuadNode *root = new QuadNode(Vect(0, canvas_height), Vect(canvas_width, canvas_height));
     root->mass = bodies.m[0];
     root->center_of_mass = bodies.r[0];
     Body b = Body(bodies.m[0], bodies.r[0], bodies.v[0], bodies.colors[0]);
@@ -127,8 +119,8 @@ void constructBarnesHutTree(Scenario bodies) {
 
     // Construct tree with remaining bodies
     for (int i = 1; i < bodies.r.size(); i++) {
-        Body b = Body(bodies.m[i], bodies.r[i], bodies.v[i], bodies.colors[i]);
-        BarnesHutRecursion(root, &b);
+        Body *b = new Body(bodies.m[i], bodies.r[i], bodies.v[i], bodies.colors[i]);
+        BarnesHutRecursion(root, b);
     }
 
     /* Calculate the force exerted */
@@ -141,27 +133,27 @@ void constructBarnesHutTree(Scenario bodies) {
             stack.pop_back();
             size_t n = curr->bodies.size();
             if (n == 1) {
-                if (curr->bodies[0] != &b) {
+                if ((curr->bodies[0]->r - b.r).norm2() > 0) {
                     Vect dr = curr->bodies[0]->r - bodies.r[i];
                     double dist_sq = std::max(dr.norm2(), 1e-6);
                     double dist = sqrt(dist_sq);
-                    double force_mag = G * curr->bodies[0]->m * bodies.m[i] / dist_sq;
+                    double force_mag = G * curr->bodies[0]->m * b.m / dist_sq;
                     Vect force = dr * (force_mag / dist);
-                    bodies.v[i] += force * (dt / bodies.m[i]);
+                    bodies.v[i] += force * (dt / b.m);
                 }
             } else if (isFarEnough(curr, &b)) {
                 Vect dr = curr->center_of_mass - bodies.r[i];
                 double dist_sq = std::max(dr.norm2(), 1e-6);
                 double dist = sqrt(dist_sq);
-                double force_mag = G * curr->mass * bodies.m[i] / dist_sq;
+                double force_mag = G * curr->mass * b.m / dist_sq;
                 Vect force = dr * (force_mag / dist);
-                bodies.v[i] += force * (dt / bodies.m[i]);
+                bodies.v[i] += force * (dt / b.m);
             } else {
                 for (int j = 0; j < 4; j++) {
-                    stack.push_back(curr->children[j]);
+                    if (curr->children[j])
+                        stack.push_back(curr->children[j]);
                 }
             }
         }
     }
-
 }

@@ -12,8 +12,8 @@ inline double uniform() { return (double)rand() / RAND_MAX; }
 inline size_t discrete_uniform(size_t n) { return rand() % n; }
 
 namespace config {
-const double dt = 1e-2;
-const double t_end = 100;
+const double dt = 1e-1;
+const double t_end = 10;
 const double draw_dt = 1;
 const size_t canvas_width = 400, canvas_height = 400;
 } // namespace config

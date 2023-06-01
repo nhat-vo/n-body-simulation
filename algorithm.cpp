@@ -203,7 +203,8 @@ int main(int argc, char **argv) {
 #ifdef VISUALIZE
     multi_thread_1(bodies, n_threads, drawer);
 #else
-    multi_thread_1(bodies, n_threads);
+    // multi_thread_1(bodies, n_threads);
+    single_thread(bodies, n_threads);
 #endif
     auto end = std::chrono::steady_clock::now();
 

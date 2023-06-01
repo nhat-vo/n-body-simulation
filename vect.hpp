@@ -1,5 +1,7 @@
 #pragma once
 #include <math.h>
+#include <iostream>
+
 class Vect {
   public:
     double x, y;
@@ -27,3 +29,7 @@ class Vect {
     Vect operator*(double b) { return {x * b, y * b}; }
     Vect operator/(double b) { return {x / b, y / b}; }
 };
+std::ostream &operator<<(std::ostream &os, const Vect &v) {
+    os << "(" << v.x << ", " << v.y << ")";
+    return os;
+}

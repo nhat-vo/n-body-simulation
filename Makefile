@@ -13,7 +13,7 @@ main: $(OBJECTS) Makefile
 run: main
 	./main && wslview image.gif
 
-main.o: algorithm.cpp Makefile common.hpp
+main.o: algorithm.cpp Makefile common.hpp barnes-hutt.cpp
 	$(CXX) -c $(CFLAGS) -o main.o algorithm.cpp
 
 visualizer.o: visualizer.cpp Makefile common.hpp
