@@ -1,0 +1,5 @@
+Diagnostics:
+  ClangTidy:
+    Add: [bugprone*,clang-analyzer*, performance*]
+    Remove: [bugprone-easily-swappable-parameters]
+    

@@ -1,13 +1,13 @@
 // #include "common.hpp"
 // #include "visualizer.hpp"
-#include "barnes-hutt.cpp"
-
 #include <chrono>
 #include <cmath>
 #include <iostream>
 #include <list>
 #include <thread>
 #include <vector>
+
+#include "barnes-hut.hpp"
 
 using namespace config;
 
@@ -38,15 +38,33 @@ void single_thread(Scenario &bodies, size_t n_threads, Drawer &drawer) {
 #else
 void single_thread(Scenario &bodies, size_t n_threads) {
 #endif
+
+    std::cout << "Simulation with single_thread\n";
+
     for (double t = 0; t <= t_end; t += dt) {
 #ifdef VISUALIZE
         drawer.trigger_draw(t, &bodies.r);
 #endif
 
-        constructBarnesHutTree(bodies);
+        compute_forces(bodies, 0, bodies.r.size(), dt);
+        update_positions(bodies, 0, bodies.r.size(), dt);
+    }
+}
 
-        // compute_forces(bodies, 0, bodies.r.size(), dt);
-        // update_positions(bodies, 0, bodies.r.size(), dt);
+#ifdef VISUALIZE
+void barnes_hut(Scenario &bodies, size_t n_threads, Drawer &drawer) {
+#else
+void barnes_hut(Scenario &bodies, size_t n_threads) {
+#endif
+
+    std::cout << "Simulation with single-threaded Barnes-Hut\n";
+
+    for (double t = 0; t <= t_end; t += dt) {
+#ifdef VISUALIZE
+        drawer.trigger_draw(t, &bodies.r);
+#endif
+
+        barnes_hut_update_step(bodies);
     }
 }
 
@@ -97,6 +115,9 @@ void multi_thread_1(Scenario &bodies, size_t n_threads, Drawer &drawer) {
 #else
 void multi_thread_1(Scenario &bodies, size_t n_threads) {
 #endif
+
+    std::cout << "Simulation with multi_thread_1\n";
+
     size_t n = bodies.r.size();
     size_t chunk_size = n / n_threads;
     std::thread threads[n_threads - 1];
@@ -201,7 +222,7 @@ int main(int argc, char **argv) {
 
     auto start = std::chrono::steady_clock::now();
 #ifdef VISUALIZE
-    multi_thread_1(bodies, n_threads, drawer);
+    barnes_hut(bodies, n_threads, drawer);
 #else
     // multi_thread_1(bodies, n_threads);
     single_thread(bodies, n_threads);
