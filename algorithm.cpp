@@ -1,4 +1,4 @@
-// #include "common.hpp"
+#include "common.hpp"
 // #include "visualizer.hpp"
 #include <chrono>
 #include <cmath>
@@ -202,8 +202,8 @@ int main(int argc, char **argv) {
     for (size_t i = 0; i < n_bodies; ++i) {
         bodies.m.push_back(10 + 5 * uniform());
         bodies.colors.push_back(colors[rand() % colors.size()]);
-        bodies.r.push_back(Vect((0.25 + 0.5 * uniform()) * canvas_width,
-                                (0.25 + 0.5 * uniform()) * canvas_height));
+        bodies.r.emplace_back((0.5 + 0.25 * uniform()) * canvas_width,
+                              (0.5 + 0.25 * uniform()) * canvas_height);
 
         Vect dir = bodies.r.back() - bodies.r.front();
         double dist = dir.norm();
@@ -225,7 +225,7 @@ int main(int argc, char **argv) {
     barnes_hut(bodies, n_threads, drawer);
 #else
     // multi_thread_1(bodies, n_threads);
-    single_thread(bodies, n_threads);
+    barnes_hut(bodies, n_threads);
 #endif
     auto end = std::chrono::steady_clock::now();
 
