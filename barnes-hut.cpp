@@ -1,4 +1,22 @@
 #include "barnes-hut.hpp"
+
+#include "algorithms.hpp"
+#ifdef VISUALIZE
+void barnes_hut(Scenario &bodies, size_t n_threads, Drawer &drawer) {
+#else
+void barnes_hut(Scenario &bodies, size_t n_threads) {
+#endif
+
+    std::cout << "Simulation with single-threaded Barnes-Hut\n";
+
+    for (double t = 0; t <= t_end; t += dt) {
+#ifdef VISUALIZE
+        drawer.trigger_draw(t, &bodies.r);
+#endif
+
+        barnes_hut_update_step(bodies);
+    }
+}
 void barnes_hut_update_step(Scenario &bodies) {
     QuadNode *root = QuadNode::constructBarnesHutTree(&bodies);
 
