@@ -13,8 +13,10 @@
 using namespace config;
 
 class QuadNode {
-public:
     enum quad { nw, ne, sw, se };  // indeed this is not used
+    bool is_empty = true;
+
+public:
     QuadNode *children[4]{nullptr, nullptr, nullptr, nullptr};
     double m = 0;
     Vect center_of_mass;
@@ -55,8 +57,8 @@ public:
 
 private:
     quad getQuad(const Vect &r) const {
-        return r.x < center.x ? (r.y < center.y ? se : ne)
-                              : (r.y < center.y ? sw : nw);
+        return r.x < center.x ? (r.y < center.y ? sw : nw)
+                              : (r.y < center.y ? se : ne);
     }
 
     void updateCenterOfMass(size_t id) {
@@ -83,23 +85,31 @@ private:
 
     // Recursively add body `index` to this node
     void addBody(int index) {
-        size_t n = body_id.size();
-        body_id.push_back(index);
-
+        if (!isInside(scenario->r[index])) {
+            std::cout << "Body " << index << " is not inside the node\n";
+            std::cout << scenario->r[index] << " " << center << " " << dimension
+                      << std::endl;
+            return;
+        }
         // If node is empty, add body to node
-        if (n == 0) {
+        if (is_empty || dimension.x < 1e-3) {
+            is_empty = false;
+            body_id.push_back(index);
             updateCenterOfMass(index);
             return;
         }
 
         // If there is only one body in the node, create a new define the sub
-        // node of the old because the node was not split yet
-        if (n == 1) {
+        // node of the old because the node was not split yet. The case where
+        // there are multiple bodies is handled above, so there should always be
+        // only one body here.
+        if (!body_id.empty()) {
             quad quad_old = getQuad(scenario->r[body_id[0]]);
             Vect quad_center = getQuadCenter(quad_old);
             children[quad_old] =
                 new QuadNode(scenario, quad_center, dimension / 2);
             children[quad_old]->addBody(body_id[0]);
+            body_id.clear();
         }
 
         // Get quad where new body belongs
@@ -115,6 +125,13 @@ private:
         children[quad_new]->addBody(index);
         updateCenterOfMass(index);
     }
+
+    bool isInside(const Vect &point) const {
+        return point.x <= center.x + dimension.x / 2 &&
+               point.x >= center.x - dimension.x / 2 &&
+               point.y <= center.y + dimension.y / 2 &&
+               point.y >= center.y - dimension.y / 2;
+    }
 };
 
 void barnes_hut_update_step(Scenario &bodies) {
@@ -125,33 +142,30 @@ void barnes_hut_update_step(Scenario &bodies) {
         const double m = bodies.m[i];
         const Vect &r = bodies.r[i];
 
+        auto update_v = [&bodies, m, &r, i](const Vect &other_r,
+                                            const double other_m) {
+            Vect dr = other_r - r;
+            double dist_sq = std::max(dr.norm2(), 1e-6);
+            double dist = sqrt(dist_sq);
+            double force_mag = G * other_m * m / dist_sq;
+            Vect force = dr * (force_mag / dist);
+            bodies.v[i] += force * (dt / m);
+        };
+
         std::stack<QuadNode *> stack;
         stack.push(root);
         while (!stack.empty()) {
             QuadNode *curr = stack.top();
             stack.pop();
-            size_t n = curr->body_id.size();
 
-            if (n == 1) {
-                int curr_body = curr->body_id[0];
-                if (curr_body != i) {
-                    const Vect &curr_r = bodies.r[curr_body];
-                    const double curr_m = bodies.m[curr_body];
-
-                    Vect dr = curr_r - r;
-                    double dist_sq = std::max(dr.norm2(), 1e-6);
-                    double dist = sqrt(dist_sq);
-                    double force_mag = G * curr_m * m / dist_sq;
-                    Vect force = dr * (force_mag / dist);
-                    bodies.v[i] += force * (dt / m);
+            if (!curr->body_id.empty()) {
+                for (int curr_body : curr->body_id) {
+                    if (curr_body != i) {
+                        update_v(bodies.r[curr_body], bodies.m[curr_body]);
+                    }
                 }
             } else if (curr->isFarEnough(bodies.r[i])) {
-                Vect dr = curr->center_of_mass - r;
-                double dist_sq = std::max(dr.norm2(), 1e-6);
-                double dist = sqrt(dist_sq);
-                double force_mag = G * curr->m * m / dist_sq;
-                Vect force = dr * (force_mag / dist);
-                bodies.v[i] += force * (dt / m);
+                update_v(curr->center_of_mass, curr->m);
             } else {
                 for (int j = 0; j < 4; j++) {
                     if (curr->children[j]) stack.push(curr->children[j]);

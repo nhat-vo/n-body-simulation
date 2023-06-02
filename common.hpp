@@ -7,7 +7,7 @@
 
 const double G = 6.67e-11;
 const double PI = 3.1415926535;
-const double theta = 0.5;
+const double theta = 2.;
 
 inline double uniform() { return (double)rand() / RAND_MAX; }
 inline size_t discrete_uniform(size_t n) { return rand() % n; }
