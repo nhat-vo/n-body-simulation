@@ -2,7 +2,7 @@ CXX = g++
 MAGICK = `Magick++-config --cppflags --cxxflags --ldflags --libs`
 # DFLAGS = -DVISUALIZE
 DFLAGS =
-CFLAGS = -O3 -pthread -std=c++20 -Wall -g $(MAGICK) $(DFLAGS)
+CFLAGS = -O3 -pthread -fopenmp -std=c++20 -Wall -g $(MAGICK) $(DFLAGS)
 
 HOST = pologne
 SOURCES = $(shell find $(SOURCE_DIR) -name '*.cpp' -o -name '*.hpp') Makefile

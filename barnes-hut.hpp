@@ -5,6 +5,7 @@
 #include <thread>
 #include <tuple>
 #include <vector>
+#include <omp.h>
 
 #include "common.hpp"
 #include "vect.hpp"
@@ -35,7 +36,11 @@ public:
             new QuadNode(bodies, Vect(canvas_width / 2., canvas_height / 2.),
                          Vect(universe_width, universe_height));
 
-        for (int i = 0; i < bodies->r.size(); i++) root->addBody(i);
+        #pragma omp parallel for
+        for (int i = 0; i < bodies->r.size(); i++) {
+            #pragma omp critical
+            root->addBody(i);
+        }
 
         return root;
     }
