@@ -1,6 +1,7 @@
 CXX = g++
 MAGICK = `Magick++-config --cppflags --cxxflags --ldflags --libs`
-DFLAGS = -DVISUALIZE
+# DFLAGS = -DVISUALIZE
+DFLAGS =
 CFLAGS = -O3 -pthread -std=c++20 -Wall -g $(MAGICK) $(DFLAGS)
 
 SOURCES = algorithm.cpp vect.hpp visualizer.hpp common.hpp barnes-hut.hpp

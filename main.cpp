@@ -138,4 +138,7 @@ int main(int argc, char **argv) {
     std::chrono::duration<double> duration = end - start;
     std::cout << "Simulation ended. Took " << duration.count() << "s"
               << std::endl;
+    std::cout << "Average time per step: "
+              << duration.count() / std::floor(t_end / dt) * 1000 << "ms"
+              << std::endl;
 }
