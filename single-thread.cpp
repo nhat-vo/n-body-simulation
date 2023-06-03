@@ -30,7 +30,7 @@ void single_thread(Scenario &bodies, size_t n_threads) {
 
     std::cout << "Simulation with single_thread\n";
 
-    for (double t = 0; t <= t_end; t += dt) {
+    for (double t = 0; t < t_end; t += dt) {
 #ifdef VISUALIZE
         drawer.trigger_draw(t, &bodies.r);
 #endif

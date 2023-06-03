@@ -4,8 +4,8 @@ MAGICK = `Magick++-config --cppflags --cxxflags --ldflags --libs`
 DFLAGS =
 CFLAGS = -O3 -pthread -std=c++20 -Wall -g $(MAGICK) $(DFLAGS)
 
-SOURCES = algorithm.cpp vect.hpp visualizer.hpp common.hpp barnes-hut.hpp
 HOST = pologne
+SOURCES = $(shell find $(SOURCE_DIR) -name '*.cpp' -o -name '*.hpp') Makefile
 
 OBJECTS = main.o visualizer.o barnes-hut.o single-thread.o multi-thread-1.o multi-thread-2.o
 
@@ -20,8 +20,8 @@ barnes-hut.o:  barnes-hut.hpp
 
 
 # This runs the code on the school's machine. You need to specify the host, and have set up a ssh authentication with it.
-remote: $(SOURCES) Makefile
-	scp -r $(SOURCES) Makefile $(HOST):~/tmp/
+remote: $(SOURCES)
+	scp -r $(SOURCES) $(HOST):~/tmp/
 	ssh -t $(HOST) 'cd ~/tmp && ls && make main CXX=g++121 DFLAGS= MAGICK='
 
 clean:

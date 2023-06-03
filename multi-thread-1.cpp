@@ -59,7 +59,7 @@ void multi_thread_1(Scenario &bodies, size_t n_threads) {
     std::vector<Vect> tmp_r(n);
     std::vector<Vect> *curr = &bodies.r, *next = &tmp_r;
 
-    for (double t = 0; t <= t_end; t += dt) {
+    for (double t = 0; t < t_end; t += dt) {
 #ifdef VISUALIZE
         drawer.trigger_draw(t, curr);
 #endif
