@@ -1,13 +1,13 @@
 CXX = g++
 MAGICK = `Magick++-config --cppflags --cxxflags --ldflags --libs`
-# DFLAGS = -DVISUALIZE -DDEBUG
-DFLAGS =
+DFLAGS = -DVISUALIZE
 CFLAGS = -O3 -pthread -std=c++20 -Wall -g $(MAGICK) $(DFLAGS)
 
 SOURCES = algorithm.cpp vect.hpp visualizer.hpp common.hpp barnes-hut.hpp
 HOST = pologne
 
 OBJECTS = main.o visualizer.o barnes-hut.o single-thread.o multi-thread-1.o multi-thread-2.o
+
 
 main: $(OBJECTS)
 	$(CXX) $(CFLAGS) -o main $(OBJECTS)
