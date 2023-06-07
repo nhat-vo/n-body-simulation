@@ -24,6 +24,8 @@ static void update_positions(Scenario &bodies, int start, int end, double dt) {
 
 #ifdef VISUALIZE
 void single_thread(Scenario &bodies, size_t n_threads, Drawer &drawer) {
+#elif defined(WRITE)
+void single_thread(Scenario &bodies, size_t n_threads, Writer &writer) {
 #else
 void single_thread(Scenario &bodies, size_t n_threads) {
 #endif
@@ -33,6 +35,8 @@ void single_thread(Scenario &bodies, size_t n_threads) {
     for (double t = 0; t < t_end; t += dt) {
 #ifdef VISUALIZE
         drawer.trigger_draw(t, &bodies.r);
+#elif WRITE
+        writer.write(bodies.r);
 #endif
 
         compute_forces(bodies, 0, bodies.r.size(), dt);

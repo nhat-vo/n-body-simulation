@@ -3,6 +3,8 @@
 #include "algorithms.hpp"
 #ifdef VISUALIZE
 void barnes_hut(Scenario &bodies, size_t n_threads, Drawer &drawer) {
+#elif defined(WRITE)
+void barnes_hut(Scenario &bodies, size_t n_threads, Writer &writer) {
 #else
 void barnes_hut(Scenario &bodies, size_t n_threads) {
 #endif
@@ -12,16 +14,18 @@ void barnes_hut(Scenario &bodies, size_t n_threads) {
     for (double t = 0; t < t_end; t += dt) {
 #ifdef VISUALIZE
         drawer.trigger_draw(t, &bodies.r);
+#elif WRITE
+        writer.write(bodies.r);
 #endif
 
         barnes_hut_update_step(bodies);
     }
 }
+
 void barnes_hut_update_step(Scenario &bodies) {
     QuadNode *root = QuadNode::constructBarnesHutTree(&bodies);
 
     /* Calculate the force exerted */
-    // #pragma omp parallel for
     for (size_t i = 0; i < bodies.r.size(); i++) {
         const double m = bodies.m[i];
         const Vect &r = bodies.r[i];

@@ -47,6 +47,8 @@ static void multi_thread_1_aux(Scenario &bodies, std::vector<Vect> &curr,
 
 #ifdef VISUALIZE
 void multi_thread_1(Scenario &bodies, size_t n_threads, Drawer &drawer) {
+#elif defined(WRITE)
+void multi_thread_1(Scenario &bodies, size_t n_threads, Writer &writer) {
 #else
 void multi_thread_1(Scenario &bodies, size_t n_threads) {
 #endif
@@ -62,6 +64,8 @@ void multi_thread_1(Scenario &bodies, size_t n_threads) {
     for (double t = 0; t < t_end; t += dt) {
 #ifdef VISUALIZE
         drawer.trigger_draw(t, curr);
+#elif WRITE
+        writer.write(*curr);
 #endif
         for (size_t i = 0; i < n_threads - 1; ++i) {
             threads[i] = std::thread(multi_thread_1_aux, std::ref(bodies),

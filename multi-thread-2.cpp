@@ -56,6 +56,8 @@ static void aux(const Scenario &bodies, std::vector<Vect> &delta_v, size_t load,
 
 #ifdef VISUALIZE
 void multi_thread_2(Scenario &bodies, size_t n_threads, Drawer &drawer) {
+#elif defined(WRITE)
+void multi_thread_2(Scenario &bodies, size_t n_threads, Writer &writer) {
 #else
 void multi_thread_2(Scenario &bodies, size_t n_threads) {
 #endif
@@ -71,6 +73,8 @@ void multi_thread_2(Scenario &bodies, size_t n_threads) {
     for (double t = 0; t < t_end; t += dt) {
 #ifdef VISUALIZE
         drawer.trigger_draw(t, &bodies.r);
+#elif WRITE
+        writer.write(bodies.r);
 #endif
 
         // std::cout << "update\n";

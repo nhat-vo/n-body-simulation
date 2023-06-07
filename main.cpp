@@ -14,6 +14,7 @@ int main(int argc, char **argv) {
         std::cout << "1: multi-thread-1" << std::endl;
         std::cout << "2: multi-thread-2" << std::endl;
         std::cout << "3: barnes-hut" << std::endl;
+        std::cout << "4: barnes-hut multi-threaded" << std::endl;
 
         return 0;
     }
@@ -68,6 +69,10 @@ int main(int argc, char **argv) {
     Magick::InitializeMagick(*argv);
 #endif
 
+#ifdef WRITE
+    Writer writer("output.txt");
+#endif
+
     // setup scenario
     const Vect offset = {canvas_width / 2, canvas_height / 2};
 
@@ -119,6 +124,22 @@ int main(int argc, char **argv) {
             barnes_hut(bodies, n_threads, drawer);
         case 4:
             barnes_hut_multi(bodies, n_threads, drawer);
+    }
+#elif WRITE
+    switch (algo) {
+        case 0:
+            single_thread(bodies, n_threads, writer);
+            break;
+        case 1:
+            multi_thread_1(bodies, n_threads, writer);
+            break;
+        case 2:
+            multi_thread_2(bodies, n_threads, writer);
+            break;
+        case 3:
+            barnes_hut(bodies, n_threads, writer);
+        case 4:
+            barnes_hut_multi(bodies, n_threads, writer);
     }
 #else
     switch (algo) {

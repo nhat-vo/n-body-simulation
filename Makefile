@@ -1,18 +1,20 @@
 CXX = g++
-MAGICK = `Magick++-config --cppflags --cxxflags --ldflags --libs`
+# MAGICK = `Magick++-config --cppflags --cxxflags --ldflags --libs`
+MAGICK =
 # DFLAGS = -DVISUALIZE
-DFLAGS =
-CFLAGS = -O3 -pthread -fopenmp -std=c++20 -Wall -g $(MAGICK) $(DFLAGS)
+DFLAGS = -DWRITE
+# DFLAGS =
+CFLAGS = -O3 -pthread -std=c++20 -Wall -g $(MAGICK) $(DFLAGS)
 
 HOST = pologne
 SOURCES = $(shell find $(SOURCE_DIR) -name '*.cpp' -o -name '*.hpp') Makefile
 
-OBJECTS = main.o visualizer.o barnes-hut.o single-thread.o multi-thread-1.o multi-thread-2.o barnes-hut-multi.o
+OBJECTS = main.o visualizer.o barnes-hut.o single-thread.o multi-thread-1.o multi-thread-2.o barnes-hut-multi.o writer.o
 
 main: $(OBJECTS)
 	$(CXX) $(CFLAGS) -o main $(OBJECTS)
 
-%.o: %.cpp  Makefile common.hpp vect.hpp algorithms.hpp visualizer.hpp
+%.o: %.cpp  Makefile common.hpp vect.hpp algorithms.hpp visualizer.hpp writer.hpp
 	$(CXX) -c $(CFLAGS) -o $@ $<
 
 barnes-hut.o:  barnes-hut.hpp

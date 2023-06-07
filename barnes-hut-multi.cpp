@@ -3,6 +3,8 @@
 
 #ifdef VISUALIZE
 void barnes_hut_multi(Scenario &bodies, size_t n_threads, Drawer &drawer) {
+#elif WRITE
+void barnes_hut_multi(Scenario &bodies, size_t n_threads, Writer &writer) {
 #else
 void barnes_hut_multi(Scenario &bodies, size_t n_threads) {
 #endif
@@ -12,6 +14,8 @@ void barnes_hut_multi(Scenario &bodies, size_t n_threads) {
     for (double t = 0; t < t_end; t += dt) {
 #ifdef VISUALIZE
         drawer.trigger_draw(t, &bodies.r);
+#elif WRITE
+        writer.write(bodies.r);
 #endif
 
         barnes_hut_update_step_multi(bodies, n_threads);

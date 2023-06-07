@@ -10,6 +10,7 @@
 #include "common.hpp"
 #include "vect.hpp"
 #include "visualizer.hpp"
+#include "writer.hpp"
 
 using namespace config;
 
@@ -37,9 +38,7 @@ public:
             new QuadNode(bodies, Vect(canvas_width / 2., canvas_height / 2.),
                          Vect(universe_width, universe_height));
 
-        #pragma omp parallel for
         for (size_t i = 0; i < bodies->r.size(); i++) {
-            #pragma omp critical
             root->addBody(i);
         }
 
