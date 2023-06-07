@@ -19,7 +19,19 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    size_t n_threads = 1, n_bodies = 100, algo = 3;
+    if (argc > 1) {
+        // Iterate over the arguments
+        for (int i = 1; i < argc; ++i) {
+            // Compare the argument with the desired value
+            if (std::string(argv[i]) == "--benchmark") {
+                std::cout << "Found desired_value in argv!" << std::endl;
+                // run benchmark
+                return 0;
+            }
+        }
+    }
+
+    size_t n_threads = 1, n_bodies = 100, algo = 4;
     if (argc >= 2) {
         try {
             int tmp = std::stoi(argv[1]);
@@ -70,7 +82,8 @@ int main(int argc, char **argv) {
 #endif
 
 #ifdef WRITE
-    Writer writer("output.txt");
+    Writer writer_single("single.txt");
+    Writer writer_barnes("barnes.txt");
 #endif
 
     // setup scenario
@@ -87,18 +100,19 @@ int main(int argc, char **argv) {
     Scenario bodies{{1e14}, {offset + Vect(0, 0)}, {{0, 0}}, {"red"}};
     std::vector<std::string> colors{"blue", "green",  "gold",   "grey",
                                     "pink", "orange", "purple", "brown"};
-    for (size_t i = 0; i < n_bodies - 1; ++i) {
-        bodies.m.push_back(10 + 5 * uniform());
-        bodies.colors.push_back(colors[rand() % colors.size()]);
-        bodies.r.emplace_back((0.25 + 0.5 * uniform()) * canvas_width,
-                              (0.25 + 0.5 * uniform()) * canvas_height);
+    initialize_bodies(bodies, n_bodies, colors);
+    // for (size_t i = 0; i < n_bodies - 1; ++i) {
+    //     bodies.m.push_back(10 + 5 * uniform());
+    //     bodies.colors.push_back(colors[rand() % colors.size()]);
+    //     bodies.r.emplace_back((0.25 + 0.5 * uniform()) * canvas_width,
+    //                           (0.25 + 0.5 * uniform()) * canvas_height);
 
-        Vect dir = bodies.r.back() - bodies.r.front();
-        double dist = dir.norm();
-        double v = sqrt((0.5 + uniform()) * G * bodies.m.front() / dist);
-        dir = dir / dist;
-        bodies.v.push_back({v * (-dir.y), v * dir.x});
-    }
+    //     Vect dir = bodies.r.back() - bodies.r.front();
+    //     double dist = dir.norm();
+    //     double v = sqrt((0.5 + uniform()) * G * bodies.m.front() / dist);
+    //     dir = dir / dist;
+    //     bodies.v.push_back({v * (-dir.y), v * dir.x});
+    // }
 
 #ifdef VISUALIZE
     // setup drawing thread
@@ -122,25 +136,15 @@ int main(int argc, char **argv) {
             break;
         case 3:
             barnes_hut(bodies, n_threads, drawer);
+            break;
         case 4:
             barnes_hut_multi(bodies, n_threads, drawer);
+            break;
     }
 #elif WRITE
-    switch (algo) {
-        case 0:
-            single_thread(bodies, n_threads, writer);
-            break;
-        case 1:
-            multi_thread_1(bodies, n_threads, writer);
-            break;
-        case 2:
-            multi_thread_2(bodies, n_threads, writer);
-            break;
-        case 3:
-            barnes_hut(bodies, n_threads, writer);
-        case 4:
-            barnes_hut_multi(bodies, n_threads, writer);
-    }
+        Scenario bodies2 = bodies;
+        single_thread(bodies, n_threads, writer_single);
+        barnes_hut(bodies2, n_threads, writer_barnes);
 #else
     switch (algo) {
         case 0:
@@ -154,8 +158,10 @@ int main(int argc, char **argv) {
             break;
         case 3:
             barnes_hut(bodies, n_threads);
+            break;
         case 4:
             barnes_hut_multi(bodies, n_threads);
+            break;
     }
 #endif
     auto end = std::chrono::steady_clock::now();
@@ -166,4 +172,19 @@ int main(int argc, char **argv) {
     std::cout << "Average time per step: "
               << duration.count() / std::floor(t_end / dt) * 1000 << "ms"
               << std::endl;
+}
+
+void initialize_bodies(Scenario& bodies, size_t n_bodies, std::vector<std::string>& colors){
+    for (size_t i = 0; i < n_bodies - 1; ++i) {
+        bodies.m.push_back(10 + 5 * uniform());
+        bodies.colors.push_back(colors[rand() % colors.size()]);
+        bodies.r.emplace_back((0.25 + 0.5 * uniform()) * canvas_width,
+                                (0.25 + 0.5 * uniform()) * canvas_height);
+
+        Vect dir = bodies.r.back() - bodies.r.front();
+        double dist = dir.norm();
+        double v = sqrt((0.5 + uniform()) * G * bodies.m.front() / dist);
+        dir = dir / dist;
+        bodies.v.push_back({v * (-dir.y), v * dir.x});
+    }
 }

@@ -2,7 +2,7 @@ CXX = g++
 # MAGICK = `Magick++-config --cppflags --cxxflags --ldflags --libs`
 MAGICK =
 # DFLAGS = -DVISUALIZE
-DFLAGS = -DWRITE
+# DFLAGS = -DWRITE
 # DFLAGS =
 CFLAGS = -O3 -pthread -std=c++20 -Wall -g $(MAGICK) $(DFLAGS)
 
