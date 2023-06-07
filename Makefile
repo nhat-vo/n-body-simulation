@@ -7,7 +7,7 @@ MAGICK =
 CFLAGS = -O3 -pthread -std=c++20 -Wall -g $(MAGICK) $(DFLAGS)
 
 HOST = pologne
-SOURCES = $(shell find $(SOURCE_DIR) -name '*.cpp' -o -name '*.hpp') Makefile
+SOURCES = $(shell find $(shell pwd) -name '*.cpp' -o -name '*.hpp') Makefile benchmark.sh
 
 OBJECTS = main.o visualizer.o barnes-hut.o single-thread.o multi-thread-1.o multi-thread-2.o barnes-hut-multi.o writer.o
 
