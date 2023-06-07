@@ -14,6 +14,7 @@
 using namespace config;
 
 void barnes_hut_update_step(Scenario &bodies);
+void barnes_hut_update_step_multi(Scenario &bodies, int num_threads);
 
 class QuadNode {
     enum quad { nw, ne, sw, se };  // indeed this is not used
@@ -37,7 +38,7 @@ public:
                          Vect(universe_width, universe_height));
 
         #pragma omp parallel for
-        for (int i = 0; i < bodies->r.size(); i++) {
+        for (size_t i = 0; i < bodies->r.size(); i++) {
             #pragma omp critical
             root->addBody(i);
         }

@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
     if (argc >= 2) {
         try {
             int tmp = std::stoi(argv[1]);
-            if (tmp < 0 || tmp > 3) {
+            if (tmp < 0 || tmp > 4) {
                 std::cout << "Unknown algorithm" << std::endl;
                 return 1;
             }
@@ -117,6 +117,8 @@ int main(int argc, char **argv) {
             break;
         case 3:
             barnes_hut(bodies, n_threads, drawer);
+        case 4:
+            barnes_hut_multi(bodies, n_threads, drawer);
     }
 #else
     switch (algo) {
@@ -131,6 +133,8 @@ int main(int argc, char **argv) {
             break;
         case 3:
             barnes_hut(bodies, n_threads);
+        case 4:
+            barnes_hut_multi(bodies, n_threads);
     }
 #endif
     auto end = std::chrono::steady_clock::now();

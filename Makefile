@@ -7,8 +7,7 @@ CFLAGS = -O3 -pthread -fopenmp -std=c++20 -Wall -g $(MAGICK) $(DFLAGS)
 HOST = pologne
 SOURCES = $(shell find $(SOURCE_DIR) -name '*.cpp' -o -name '*.hpp') Makefile
 
-OBJECTS = main.o visualizer.o barnes-hut.o single-thread.o multi-thread-1.o multi-thread-2.o
-
+OBJECTS = main.o visualizer.o barnes-hut.o single-thread.o multi-thread-1.o multi-thread-2.o barnes-hut-multi.o
 
 main: $(OBJECTS)
 	$(CXX) $(CFLAGS) -o main $(OBJECTS)

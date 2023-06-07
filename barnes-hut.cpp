@@ -21,8 +21,8 @@ void barnes_hut_update_step(Scenario &bodies) {
     QuadNode *root = QuadNode::constructBarnesHutTree(&bodies);
 
     /* Calculate the force exerted */
-    #pragma omp parallel for
-    for (int i = 0; i < bodies.r.size(); i++) {
+    // #pragma omp parallel for
+    for (size_t i = 0; i < bodies.r.size(); i++) {
         const double m = bodies.m[i];
         const Vect &r = bodies.r[i];
 
@@ -42,7 +42,7 @@ void barnes_hut_update_step(Scenario &bodies) {
             stack.pop();
 
             if (!curr->body_id.empty()) {
-                for (int curr_body : curr->body_id) {
+                for (size_t curr_body : curr->body_id) {
                     if (curr_body != i) {
                         update_v(bodies.r[curr_body], bodies.m[curr_body]);
                     }
