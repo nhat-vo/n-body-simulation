@@ -1,7 +1,7 @@
 #include <chrono>
 #include <cmath>
 
-#include "algorithms.hpp"
+#include "algorithms.h8pp"
 
 int main(int argc, char **argv) {
     // nothing fancy here, just parsing command line arguments
