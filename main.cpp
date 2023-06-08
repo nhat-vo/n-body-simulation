@@ -90,30 +90,10 @@ int main(int argc, char **argv) {
     // setup scenario
     const Vect offset = {canvas_width / 2, canvas_height / 2};
 
-    // double v = sqrt(1 * G * 1e14 / 50);
-    // Scenario bodies{
-    //     {1e14, 1},
-    //     {offset + Vect(0, 0), offset + Vect(0, -50)},
-    //     {{0, 0}, {v, 0}},
-    //     {"red", "green"},
-    // };
-
     Scenario bodies{{1e14}, {offset + Vect(0, 0)}, {{0, 0}}, {"red"}};
     std::vector<std::string> colors{"blue", "green",  "gold",   "grey",
                                     "pink", "orange", "purple", "brown"};
     initialize_bodies(bodies, n_bodies, colors);
-    // for (size_t i = 0; i < n_bodies - 1; ++i) {
-    //     bodies.m.push_back(10 + 5 * uniform());
-    //     bodies.colors.push_back(colors[rand() % colors.size()]);
-    //     bodies.r.emplace_back((0.25 + 0.5 * uniform()) * canvas_width,
-    //                           (0.25 + 0.5 * uniform()) * canvas_height);
-
-    //     Vect dir = bodies.r.back() - bodies.r.front();
-    //     double dist = dir.norm();
-    //     double v = sqrt((0.5 + uniform()) * G * bodies.m.front() / dist);
-    //     dir = dir / dist;
-    //     bodies.v.push_back({v * (-dir.y), v * dir.x});
-    // }
 
 #ifdef VISUALIZE
     // setup drawing thread

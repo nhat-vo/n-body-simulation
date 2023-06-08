@@ -22,7 +22,8 @@ The [Makefile](https://github.com/nhat-vo/n-body-simulation/blob/main/Makefile) 
 - In order to build the code with visualization, please add `-DVISUALIZE` in compilation. You can do this, for example, by uncommenting the `# DFLAGS = -DVISUALIZE` inside the Makefile.
 Please note that this requires `imagemagick` installed, and the `Magick++config` script in `PATH`.
 In addition, the visualization could be much slower compared to the actual computation, hence it is recommended to compile without this in benchmarking.
-- The flag `-DDEBUG` could also be turned on for additional debug information. 
+- The flag `-DWRITE` could be turned on to write the positions of the bodies into a ``.txt`` file. This is used for plotting the graphs for positions of the bodies and analyze the precision between different algorithms namely the leapfrog ($0$) and the Barnes-Hut ($3$) as the other three algorithms are only parallel versions of these two.
+- The flag `-DDEBUG` could also be turned on for additional debug information.
 Currently, the only debug information being printed when this is turned on is when a body exits the universe scope in Barnes-Hut algorithm.
 
 ### Binary usage:
@@ -35,19 +36,25 @@ Algorithms:
 1: multi-thread-1
 2: multi-thread-2
 3: barnes-hut
+4: barnes-hut-multi-thread
 ```
 You can specify the algorithm, number of threads, and number of bodies for the simulation. Please note that for `single-thread` and `barnes-hut`, the number of threads will always be 1.
+
+### Benchmarking
+The script `benchmark.sh` is used to benchmark the code with different algorithms and number of threads. One can run `bash ./benchmark.sh` to run the benchmarking script and modify the loop values in the script appropriately to benchmark the code with different number of threads and bodies.
 
 ## Code structure:
 The repository is structured as follows:
 - `vect.hpp` defines a 2D vector class and common operations for use throughout the code.
 - `common.hpp` defines several configuration such as simulation period, step size, etc.
 - `visualizer.hpp` and `visualizer.cpp` defines the code for the visualization functionalities. A brief description of how to use this is included in `visualizer.hpp`.
-- `algorithms.hpp` declares the available algorithms. 
-In order to make the code more readable and avoid name collision, we only have the declaration here, and the implementation of each will be split into a separate file.
+- `algorithms.hpp` declares the available algorithms.
+In order to make the code more readable and avoid name collision, we only have the declaration here, and the implementation of each is split into a separate file appropriately named.
 - `main.cpp` defines the argument parsing logic, constructs a scenario, then starts and times the simulation.
+- `writer.hpp` and `writer.cpp` defines the code for writing the positions of the bodies from a simulation into a ``.txt`` file.
+- `draw_graph.py` is a Python script to draw the graphs available in the report from the data in the ``.txt`` file.
 
-Currently, the default scenario is 1 very heavy object (the sun) at the middle of the canvas, and `number_of_bodies - 1` objects (planets) revolving around it, with 
+Currently, the default scenario is 1 very heavy object (the sun) at the middle of the canvas, and `number_of_bodies - 1` objects (planets) revolving around it, with
 their positions randomly distributed inside a square centered at the sun.
 The planets' velocities are randomly generated so that (1) they moves in a counter-clockwise direction and (2) they orbits around the sun and neither escape nor crash into it.
 
