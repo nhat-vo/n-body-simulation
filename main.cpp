@@ -1,7 +1,7 @@
 #include <chrono>
 #include <cmath>
 
-#include "algorithms.hpp"
+#include "headers/algorithms.hpp"
 
 int main(int argc, char** argv) {
     std::string algos[5] = {"single-thread", "multi-thread-1", "multi-thread-2",

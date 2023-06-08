@@ -10,10 +10,10 @@ OBJECTS = main.o visualizer.o barnes-hut.o single-thread.o multi-thread-1.o mult
 main: $(OBJECTS)
 	$(CXX) $(CFLAGS) -o main $(OBJECTS)
 
-%.o: %.cpp  Makefile common.hpp vect.hpp algorithms.hpp visualizer.hpp writer.hpp
+%.o: %.cpp  Makefile headers/common.hpp headers/vect.hpp headers/algorithms.hpp headers/visualizer.hpp headers/writer.hpp
 	$(CXX) -c $(CFLAGS) -o $@ $<
 
-visualize: 
+visualize:
 	make clean
 	make DFLAGS='-DVISUALIZE -DDEBUG' MAGICK='`Magick++-config --cppflags --cxxflags --ldflags --libs`'
 
@@ -23,10 +23,10 @@ benchmark:
 
 plot:
 	make clean
-	make DFLAGS='-DWRITE -DDEBUG'
+	make DFLAGS='-DWRITE'
 
 
-barnes-hut.o:  barnes-hut.hpp
+barnes-hut.o:  headers/barnes-hut.hpp
 
 
 # This runs the code on the school's machine. You need to specify the host, and have set up a ssh authentication with it.

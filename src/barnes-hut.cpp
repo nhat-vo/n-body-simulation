@@ -1,6 +1,6 @@
-#include "barnes-hut.hpp"
+#include "../headers/barnes-hut.hpp"
 
-#include "algorithms.hpp"
+#include "../headers/algorithms.hpp"
 #ifdef VISUALIZE
 void barnes_hut(Scenario &bodies, size_t n_threads, Drawer &drawer) {
 #elif defined(WRITE)

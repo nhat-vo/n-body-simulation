@@ -1,4 +1,4 @@
-#include "barnes-hut.hpp"
+#include "../headers/barnes-hut.hpp"
 #include <vector>
 
 #ifdef VISUALIZE

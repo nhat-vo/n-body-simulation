@@ -1,4 +1,5 @@
-#include "algorithms.hpp"
+#include "../headers/algorithms.hpp"
+
 static void compute_forces(Scenario &bodies, size_t start, size_t end,
                            double dt) {
     size_t n = bodies.r.size();

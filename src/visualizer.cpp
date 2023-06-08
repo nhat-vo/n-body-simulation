@@ -1,4 +1,4 @@
-#include "visualizer.hpp"
+#include "../headers/visualizer.hpp"
 
 #ifdef VISUALIZE
 

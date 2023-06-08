@@ -1,6 +1,6 @@
 #include <thread>
 
-#include "algorithms.hpp"
+#include "../headers/algorithms.hpp"
 
 inline static size_t getForceIndex(size_t body_id, size_t thread_id,
                                    size_t n_threads, size_t n_bodies) {

@@ -1,6 +1,6 @@
 #include <thread>
 
-#include "algorithms.hpp"
+#include "../headers/algorithms.hpp"
 
 static void multi_thread_1_aux(Scenario &bodies, std::vector<Vect> &curr,
                                std::vector<Vect> &next, size_t start,

@@ -1,5 +1,5 @@
-#include "writer.hpp"
-#include "common.hpp"
+#include "../headers/writer.hpp"
+#include "../headers/common.hpp"
 
 using namespace config;
 
