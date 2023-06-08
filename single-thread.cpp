@@ -30,7 +30,9 @@ void single_thread(Scenario &bodies, size_t n_threads, Writer &writer) {
 void single_thread(Scenario &bodies, size_t n_threads) {
 #endif
 
+#ifdef DEBUG
     std::cout << "Simulation with single_thread\n";
+#endif
 
     for (double t = 0; t < t_end; t += dt) {
 #ifdef VISUALIZE

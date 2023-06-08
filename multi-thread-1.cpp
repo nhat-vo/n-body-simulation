@@ -53,7 +53,9 @@ void multi_thread_1(Scenario &bodies, size_t n_threads, Writer &writer) {
 void multi_thread_1(Scenario &bodies, size_t n_threads) {
 #endif
 
+#ifdef DEBUG
     std::cout << "Simulation with multi_thread_1\n";
+#endif
 
     size_t n = bodies.r.size();
     size_t chunk_size = n / n_threads;

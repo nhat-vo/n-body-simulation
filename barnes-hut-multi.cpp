@@ -9,7 +9,9 @@ void barnes_hut_multi(Scenario &bodies, size_t n_threads, Writer &writer) {
 void barnes_hut_multi(Scenario &bodies, size_t n_threads) {
 #endif
 
+#ifdef DEBUG
     std::cout << "Simulation with multi-threaded Barnes-Hut\n";
+#endif
 
     for (double t = 0; t < t_end; t += dt) {
 #ifdef VISUALIZE

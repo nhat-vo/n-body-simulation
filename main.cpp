@@ -4,18 +4,20 @@
 #include "algorithms.hpp"
 
 int main(int argc, char **argv) {
+
+    std::string algos[5] = {"single-thread", "multi-thread-1", "multi-thread-2", "barnes-hut", "barnes-hut multi-threaded"};
+
     // nothing fancy here, just parsing command line arguments
     if (argc == 1) {
-        std::cout << "Usage: " << argv[0] << "<algorithm id (default = 0)>"
-                  << "<number of threads (default = 1)>"
-                  << "<number of bodies (default = 100)>" << std::endl;
+        std::cout << "Usage: " << argv[0]
+                  << " <algorithm id (default = 0)>"
+                  << " <number of threads (default = 1)>"
+                  << " <number of bodies (default = 100)>" << std::endl;
 
         std::cout << "Algorithms:" << std::endl;
-        std::cout << "0: single-thread" << std::endl;
-        std::cout << "1: multi-thread-1" << std::endl;
-        std::cout << "2: multi-thread-2" << std::endl;
-        std::cout << "3: barnes-hut" << std::endl;
-        std::cout << "4: barnes-hut multi-threaded" << std::endl;
+        for (int i = 0; i < 5; i++) {
+            std::cout << i << ": " << algos[i] << std::endl;
+        }
 
         return 0;
     }
@@ -100,8 +102,7 @@ int main(int argc, char **argv) {
     Drawer drawer(bodies.colors);
 #endif
 
-    std::cout << "Starting simulation of " << n_bodies << " bodies with "
-              << n_threads << " parallel threads..." << std::endl;
+    std::cout << algos[algo] << "; Bodies:" << n_bodies << "; Threads:" << n_threads;
 
     auto start = std::chrono::steady_clock::now();
 #ifdef VISUALIZE
@@ -148,11 +149,13 @@ int main(int argc, char **argv) {
     auto end = std::chrono::steady_clock::now();
 
     std::chrono::duration<double> duration = end - start;
-    std::cout << "Simulation ended. Took " << duration.count() << "s"
-              << std::endl;
+    std::cout << "; Time: " << duration.count() << "s" << std::endl;
+
+#ifdef DEBUG
     std::cout << "Average time per step: "
               << duration.count() / std::floor(t_end / dt) * 1000 << "ms"
               << std::endl;
+#endif
 }
 
 void initialize_bodies(Scenario& bodies, size_t n_bodies, std::vector<std::string>& colors){
