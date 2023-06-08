@@ -6,7 +6,8 @@
 
 using namespace config;
 
-void initialize_bodies(Scenario &bodies, size_t n_bodies, std::vector<std::string> &colors);
+void initialize_bodies(Scenario &bodies, size_t n_bodies,
+                       std::vector<std::string> &colors);
 
 #ifdef VISUALIZE
 
